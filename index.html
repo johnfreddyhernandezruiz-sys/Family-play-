@@ -80,7 +80,7 @@
     <h2>Jugadores</h2>
     <div id="players" class="players"></div>
     <div id="hostControls" class="hidden" style="margin-top:18px">
-      <button id="startBtn" class="good" onclick="window.startGame()">▶ Empezar Family Play</button>
+      <button id="startBtn" class="good" type="button">▶ Empezar Family Play</button>
     </div>
     <div id="waiting" class="notice center" style="margin-top:14px">Esperando al anfitrión…</div>
   </section>
@@ -244,6 +244,7 @@ $("joinBtn").onclick=async()=>{
   try { await connect(room); } catch(e){ msg("No fue posible conectar: "+e.message,true); show("home"); }
 };
 
+window.__familyPlayStartRound = startRound;
 window.startGame = async () => {
   try {
     if (!state.isHost) {
@@ -364,5 +365,34 @@ window.nextRound=()=>{ if(state.isHost) startRound(); };
 
 renderPlayers();
 </script>
+
+<script>
+(function(){
+  document.addEventListener("click", function(ev){
+    const btn = ev.target.closest && ev.target.closest("#startBtn");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    btn.disabled = true;
+    btn.textContent = "⏳ Iniciando...";
+    try {
+      if (typeof window.startGame === "function") {
+        window.startGame();
+      } else if (typeof window.__familyPlayStartRound === "function") {
+        window.__familyPlayStartRound();
+      } else {
+        btn.disabled = false;
+        btn.textContent = "▶ Empezar Family Play";
+        alert("La aplicación todavía está cargando. Recarga la página e inténtalo de nuevo.");
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "▶ Empezar Family Play";
+      alert("No se pudo iniciar: " + (e && e.message ? e.message : e));
+    }
+  }, true);
+})();
+</script>
+
 </body>
 </html>
