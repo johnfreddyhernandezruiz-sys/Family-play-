@@ -311,7 +311,7 @@ async function connect(roomCode) {
   });
 
   state.channel
-    .on("broadcast",{event:"HELLO"},({payload})=>{
+    .on("broadcast",{event:"HELLO"},async ({payload})=>{
       if(state.isHost) {
         if(payload && payload.player) {
           state.players[payload.player.id] = payload.player;
@@ -404,6 +404,7 @@ $("joinBtn").onclick=async()=>{
 };
 
 window.__familyPlayStartRound = startRound;
+window.__familyPlayBooted = true;
 window.startGame = async () => {
   const btn = document.getElementById("startBtn");
   try {
@@ -413,15 +414,15 @@ window.startGame = async () => {
     }
     const ids = Object.keys(state.players);
     if (ids.length < 2) {
-      alert("Primero necesitamos al menos 2 jugadores conectados.");
       if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
+      alert("Primero necesitamos al menos 2 jugadores conectados.");
       return false;
     }
     if (btn) { btn.disabled = true; btn.textContent = "⏳ Iniciando..."; }
     await startRound();
     return true;
   } catch (e) {
-    console.error(e);
+    console.error("startGame", e);
     if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
     alert("No se pudo iniciar: " + (e?.message || e));
     return false;
@@ -579,6 +580,25 @@ renderPlayers();
   // First visit always shows the assistant. Returning users can skip it with the button.
   paint();
 })();
+</script>
+
+
+<script>
+window.addEventListener("error", function(e){
+  const msg = document.getElementById("homeMsg");
+  if (!msg) return;
+  msg.textContent = "Error de carga: " + (e.message || "JavaScript");
+  msg.className = "notice error";
+  msg.classList.remove("hidden");
+});
+window.addEventListener("unhandledrejection", function(e){
+  const msg = document.getElementById("homeMsg");
+  if (!msg) return;
+  const reason = e.reason && e.reason.message ? e.reason.message : String(e.reason || "Promesa");
+  msg.textContent = "Error de conexión: " + reason;
+  msg.className = "notice error";
+  msg.classList.remove("hidden");
+});
 </script>
 
 </body>
