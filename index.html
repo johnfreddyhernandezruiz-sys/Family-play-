@@ -80,7 +80,7 @@
     <h2>Jugadores</h2>
     <div id="players" class="players"></div>
     <div id="hostControls" class="hidden" style="margin-top:18px">
-      <button id="startBtn" class="good">▶ Empezar Family Play</button>
+      <button id="startBtn" class="good" onclick="window.startGame()">▶ Empezar Family Play</button>
     </div>
     <div id="waiting" class="notice center" style="margin-top:14px">Esperando al anfitrión…</div>
   </section>
@@ -244,11 +244,24 @@ $("joinBtn").onclick=async()=>{
   try { await connect(room); } catch(e){ msg("No fue posible conectar: "+e.message,true); show("home"); }
 };
 
-$("startBtn").onclick=async()=>{
-  const ids=Object.keys(state.players);
-  if(ids.length<2){ alert("Necesitamos al menos 2 jugadores para probar."); return; }
-  startRound();
+window.startGame = async () => {
+  try {
+    if (!state.isHost) {
+      alert("Solo el anfitrión puede iniciar la partida.");
+      return;
+    }
+    const ids = Object.keys(state.players);
+    if (ids.length < 2) {
+      alert("Necesitamos al menos 2 jugadores para probar.");
+      return;
+    }
+    startRound();
+  } catch (e) {
+    console.error(e);
+    alert("Error al iniciar la partida: " + (e?.message || e));
+  }
 };
+$("startBtn").onclick = window.startGame;
 
 function startRound(){
   state.round++;
