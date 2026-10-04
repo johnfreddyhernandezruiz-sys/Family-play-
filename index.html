@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Play — MVP</title>
+<style>
+:root{--bg:#0b1020;--card:#151d33;--card2:#1b2642;--text:#f7f8fc;--muted:#aeb8d0;--accent:#7c5cff;--ok:#28d17c;--danger:#ff5d73}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#1a2450 0,#0b1020 45%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+main{max-width:900px;margin:auto;padding:24px 16px 60px}.brand{font-size:28px;font-weight:800;margin:8px 0}.tag{color:var(--muted);margin-bottom:20px}
+.card{background:rgba(21,29,51,.94);border:1px solid #2b3859;border-radius:20px;padding:20px;margin:14px 0;box-shadow:0 12px 40px #0004}
+h1,h2,h3{margin-top:0}button,input,select{font:inherit;border-radius:13px;border:1px solid #3a486d;padding:13px;background:#0f1629;color:white}button{cursor:pointer;background:var(--accent);border:0;font-weight:700}button.secondary{background:#263354}button.ok{background:var(--ok);color:#06120b}button.danger{background:var(--danger)}button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}.hidden{display:none!important}.code{font-size:42px;letter-spacing:8px;font-weight:900;text-align:center;padding:18px;background:#0a0f1d;border-radius:16px}.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.player{background:var(--card2);padding:14px;border-radius:15px;text-align:center}.avatar{font-size:44px}.small{font-size:13px;color:var(--muted)}.big{font-size:25px;font-weight:800}.question{font-size:25px;line-height:1.25;margin:18px 0}.votegrid{display:grid;gap:10px}.votegrid button{background:#263354;text-align:left}.status{padding:10px 12px;border-radius:10px;background:#10182b;color:var(--muted);margin-top:10px}.pill{display:inline-block;padding:5px 9px;border-radius:99px;background:#29385e;color:#dce2f7;font-size:12px}.footer{text-align:center;color:#7180a2;font-size:12px;margin-top:25px}
+</style>
+</head>
+<body>
+<main>
+<div class="brand">🎭 Family Play</div>
+<div class="tag">Una familia. Una pantalla. Todos conectados.</div>
+
+<section id="home" class="card">
+<h2>¿Cómo quieres jugar?</h2>
+<div class="row">
+<button onclick="show('host')">🖥️ Crear sala</button>
+<button class="secondary" onclick="show('join')">📱 Unirme a una sala</button>
+</div>
+<p class="small">Prototipo 1.0 · juego remoto mediante navegador.</p>
+</section>
+
+<section id="host" class="card hidden">
+<h2>🖥️ Anfitrión</h2>
+<div id="hostSetup">
+<label>Tu nombre</label><input id="hostName" placeholder="Ej. John">
+<div style="height:10px"></div><button onclick="createRoom()">Crear sala</button>
+</div>
+<div id="hostRoom" class="hidden">
+<p>Comparte este código con tu familia:</p>
+<div id="roomCode" class="code">------</div>
+<p class="small">En cada celular abran esta misma página y elijan “Unirme”.</p>
+<h3>Jugadores (<span id="count">0</span>)</h3><div id="hostPlayers" class="players"></div>
+<div style="height:14px"></div><button id="startBtn" onclick="startGame()" disabled>Iniciar juego</button>
+<div id="hostGame" class="hidden"></div>
+</div>
+<div class="status" id="hostStatus">Esperando…</div>
+</section>
+
+<section id="join" class="card hidden">
+<h2>📱 Unirme</h2>
+<label>Nombre</label><input id="joinName" placeholder="Ej. María">
+<div style="height:10px"></div><label>Código de sala</label><input id="joinCode" placeholder="ABC123" maxlength="6" style="text-transform:uppercase">
+<div style="height:10px"></div><button onclick="joinRoom()">Entrar al juego</button>
+<div class="status" id="joinStatus">Listo para entrar.</div>
+<div id="playerGame" class="hidden"></div>
+</section>
+
+<section id="gameScreen" class="card hidden"></section>
+<div class="footer">Family Play · MVP experimental</div>
+</main>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const avatars=['🧑🏻','👩🏻','🧔🏻','👨🏻‍🦱','👩🏻‍🦰','👨🏽','👩🏽','🧑🏾','👨🏼','👩🏼'];
+const situations=[
+"Te cobran $20.000 de más en un restaurante. ¿Qué haces?",
+"Alguien de la familia llega 40 minutos tarde a una reunión. ¿Cómo reaccionas?",
+"Encuentras una billetera con dinero en la calle. ¿Qué haces?",
+"Te invitan a cantar karaoke frente a todos. ¿Qué haces?",
+"Tu equipo favorito pierde una final por un gol en el último minuto. ¿Cómo reaccionas?",
+"En el grupo familiar alguien manda un mensaje que claramente era para otra persona. ¿Qué haces?"
+];
+let mode=null,peer=null,conn=null,room='',me=null,players={},host=false,state={phase:'lobby'};
+const $=id=>document.getElementById(id);
+function show(id){['home','host','join'].forEach(x=>$(x).classList.toggle('hidden',x!==id));}
+function code(){return Math.random().toString(36).slice(2,8).toUpperCase();}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+function setStatus(id,t){$(id).textContent=t;}
+function createRoom(){
+ host=true; mode='host'; me={id:'host',name:$('hostName').value.trim()||'Anfitrión',avatar:avatars[0],host:true};
+ room=code(); $('roomCode').textContent=room;
+ $('hostSetup').classList.add('hidden');$('hostRoom').classList.remove('hidden');
+ players={host:me}; renderHostPlayers();
+ peer=new Peer('family-'+room,{debug:0});
+ peer.on('open',()=>setStatus('hostStatus','Sala lista. Código '+room));
+ peer.on('connection',c=>{c.on('open',()=>{c.send({type:'hello',room,players,state});});c.on('data',d=>hostData(c,d));});
+ peer.on('error',e=>setStatus('hostStatus','Error de conexión: '+e.type));
+}
+function renderHostPlayers(){
+ $('count').textContent=Object.keys(players).length;
+ $('hostPlayers').innerHTML=Object.values(players).map(p=>`<div class="player"><div class="avatar">${p.avatar}</div><b>${esc(p.name)}</b>${p.host?'<div class="pill">ANFITRIÓN</div>':''}</div>`).join('');
+ $('startBtn').disabled=Object.keys(players).length<2;
+}
+function hostData(c,d){
+ if(d.type==='join'){players[d.player.id]=d.player;c.playerId=d.player.id;broadcast({type:'players',players});renderHostPlayers();}
+ if(d.type==='vote'){state.votes=state.votes||{};state.votes[d.playerId]=d.target;checkVotes();}
+ if(d.type==='action'){state.action=d.text;broadcast({type:'action',text:d.text});renderHostGame();}
+}
+function broadcast(msg){if(!peer)return; peer.connections && Object.values(peer.connections).flat().forEach(c=>{try{c.send(msg)}catch(e){}});}
+function startGame(){
+ const ids=Object.keys(players); if(ids.length<2)return;
+ state.round=1; nextRound();
+}
+function nextRound(){
+ const ids=Object.keys(players);
+ const target=ids[Math.floor(Math.random()*ids.length)];
+ let controller=ids[Math.floor(Math.random()*ids.length)];
+ while(controller===target) controller=ids[Math.floor(Math.random()*ids.length)];
+ state={phase:'acting',round:state.round||1,target,controller,situation:situations[Math.floor(Math.random()*situations.length)],votes:{},action:''};
+ broadcast({type:'round',state});
+ renderHostGame();
+ // send private secret to controller
+ if(controller!=='host') sendTo(controller,{type:'secret',target,situation:state.situation});
+}
+function sendTo(playerId,msg){
+ if(playerId==='host')return;
+ const cs=peer.connections && peer.connections['family-'+room];
+ if(cs) Object.values(cs).forEach(c=>{if(c.playerId===playerId)try{c.send(msg)}catch(e){}});
+}
+function renderHostGame(){
+ $('hostGame').classList.remove('hidden');
+ const t=players[state.target],c=players[state.controller];
+ $('hostGame').innerHTML=`<div class="card"><span class="pill">RONDA ${state.round}</span>
+ <h2>${t?.avatar||'🎭'} ${esc(t?.name||'Jugador')}</h2>
+ <div class="question">${esc(state.situation||'')}</div>
+ ${state.phase==='acting'?'<p class="small">El controlador secreto está preparando su respuesta…</p>':''}
+ ${state.phase==='voting'?'<h3>🗳️ Votación abierta</h3>':''}
+ ${state.phase==='reveal'?`<div class="big">Era ${esc(c?.name||'alguien')} 😱</div><p>${esc(state.action||'')}</p><button onclick="nextRound()">Siguiente ronda</button>`:''}
+ </div>`;
+ if(state.phase==='acting' && state.controller==='host') {
+   // host acts secretly through a prompt
+   $('hostGame').innerHTML += `<div class="card"><h3>🤫 Tú controlas a ${esc(t.name)}</h3><textarea id="hostAction" style="width:100%;min-height:100px;background:#0f1629;color:white;border:1px solid #3a486d;border-radius:13px;padding:12px" placeholder="Responde como ${esc(t.name)}…"></textarea><br><br><button onclick="hostSubmitAction()">Enviar actuación</button></div>`;
+ }
+ if(state.phase==='voting') $('hostGame').innerHTML += `<div class="status">Los jugadores están votando desde sus celulares.</div>`;
+}
+function hostSubmitAction(){const text=$('hostAction').value.trim()||'No respondió 😅';state.action=text;state.phase='voting';broadcast({type:'action',text,phase:'voting'});renderHostGame();}
+function checkVotes(){
+ const voters=Object.keys(players).filter(x=>x!=='host').length;
+ if(Object.keys(state.votes).length>=voters){
+   state.phase='reveal';broadcast({type:'reveal',state});
+   renderHostGame();
+ }
+}
+
+function joinRoom(){
+ const name=$('joinName').value.trim()||'Jugador';
+ room=$('joinCode').value.trim().toUpperCase();
+ if(room.length<4)return setStatus('joinStatus','Escribe el código de 6 caracteres.');
+ me={id:'p-'+Math.random().toString(36).slice(2,9),name,avatar:avatars[Math.floor(Math.random()*avatars.length)]};
+ peer=new Peer();
+ peer.on('open',()=>{conn=peer.connect('family-'+room,{reliable:true});conn.on('open',()=>{conn.send({type:'join',player:me});setStatus('joinStatus','Conectado. Esperando al anfitrión…');});conn.on('data',playerData);});
+ peer.on('error',e=>setStatus('joinStatus','No se pudo conectar. Revisa el código.'));
+}
+function playerData(d){
+ if(d.type==='hello'){players=d.players;state=d.state;showPlayerGame();return}
+ if(d.type==='players'){players=d.players;renderPlayerLobby();return}
+ if(d.type==='round'){state=d.state;renderPlayerRound();return}
+ if(d.type==='secret'){state.secret=true;state.secretTarget=d.target;state.situation=d.situation;renderSecret();}
+ if(d.type==='action'){state.action=d.text;if(d.phase==='voting')state.phase='voting';renderPlayerRound();}
+ if(d.type==='reveal'){state=d.state;renderReveal();}
+}
+function showPlayerGame(){$('join').classList.add('hidden');$('home').classList.add('hidden');$('gameScreen').classList.remove('hidden');renderPlayerLobby();}
+function renderPlayerLobby(){
+ $('gameScreen').innerHTML=`<h2>👋 ${esc(me.name)}</h2><p>Estás dentro de la sala <b>${room}</b>.</p><div class="players">${Object.values(players).map(p=>`<div class="player"><div class="avatar">${p.avatar}</div>${esc(p.name)}</div>`).join('')}</div><div class="status">Espera a que el anfitrión inicie la partida.</div>`;
+}
+function renderSecret(){
+ $('gameScreen').innerHTML=`<span class="pill">🤫 MISIÓN SECRETA</span><h2>Controlas el avatar de ${esc(players[state.secretTarget]?.name||'otro jugador')}</h2><div class="question">${esc(state.situation)}</div><p>Actúa como esa persona. Los demás deben descubrir que eres tú.</p><textarea id="secretAction" style="width:100%;min-height:130px;background:#0f1629;color:white;border:1px solid #3a486d;border-radius:13px;padding:12px" placeholder="¿Qué haría o diría?"></textarea><br><br><button onclick="submitAction()">Enviar actuación</button>`;
+}
+function submitAction(){conn.send({type:'action',text:$('secretAction').value.trim()||'No sé qué haría 😅',playerId:me.id});$('gameScreen').innerHTML='<h2>🤫 Actuación enviada</h2><div class="status">Ahora espera la votación.</div>';}
+function renderPlayerRound(){
+ if(state.phase==='voting'){
+  const ids=Object.keys(players).filter(id=>id!==me.id&&id!=='host');
+  $('gameScreen').innerHTML=`<h2>🗳️ ¿Quién está detrás del avatar?</h2><p class="question">El avatar está actuando. ¿Quién crees que lo controla?</p><div class="votegrid">${Object.values(players).filter(p=>p.id!==state.target&&p.id!==me.id).map(p=>`<button onclick="vote('${p.id}')">${p.avatar} ${esc(p.name)}</button>`).join('')}</div>`;
+ }else if(state.controller!==me.id){
+  $('gameScreen').innerHTML=`<h2>${players[state.target]?.avatar||'🎭'} ${esc(players[state.target]?.name||'Jugador')}</h2><div class="question">${esc(state.situation)}</div><div class="status">Observa la actuación y prepárate para votar.</div>`;
+ }
+}
+function vote(target){conn.send({type:'vote',playerId:me.id,target});$('gameScreen').innerHTML='<h2>✅ Voto enviado</h2><div class="status">Esperando a los demás…</div>';}
+function renderReveal(){
+ const t=players[state.target],c=players[state.controller];
+ $('gameScreen').innerHTML=`<h2>🎉 ¡REVELACIÓN!</h2><div class="avatar">${t?.avatar||'🎭'}</div><div class="big">${esc(t?.name||'Jugador')}</div><p>La persona detrás del avatar era:</p><h2>🕵️ ${esc(c?.name||'alguien')}</h2><p>${esc(state.action||'')}</p><div class="status">Mira la pantalla principal para continuar.</div>`;
+}
+</script>
+</body>
+</html>
