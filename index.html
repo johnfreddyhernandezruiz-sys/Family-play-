@@ -1,605 +1,263 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Family Play — Supabase MVP</title>
-  <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-    window.__createSupabaseClient = createClient;
-  </script>
-  
-<style id="family-play-v4-theme">
-:root{
-  --bg:#050817;--panel:rgba(10,18,43,.88);--panel2:rgba(13,22,52,.92);
-  --text:#f8f9ff;--muted:#aeb8d7;--cyan:#18e7ff;--blue:#2d6bff;
-  --violet:#7b2cff;--magenta:#f000ff;--green:#18f39a;--gold:#ffc52f;
-}
-*{box-sizing:border-box}
-body{
-  margin:0;min-height:100vh;color:var(--text);
-  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  background:
-    radial-gradient(circle at 12% 10%,rgba(0,220,255,.22),transparent 28%),
-    radial-gradient(circle at 88% 18%,rgba(220,0,255,.20),transparent 30%),
-    radial-gradient(circle at 50% 95%,rgba(63,50,255,.22),transparent 36%),
-    linear-gradient(145deg,#030611 0%,#0a1030 48%,#120426 100%);
-  overflow-x:hidden;
-}
-body:before,body:after{
-  content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(2px);pointer-events:none;
-}
-body:before{width:230px;height:230px;left:-120px;bottom:-60px;background:rgba(0,210,255,.25)}
-body:after{width:280px;height:280px;right:-150px;bottom:-70px;background:rgba(255,0,210,.25)}
-.wrap{max-width:960px;margin:auto;padding:22px 15px 48px}
-.brand{text-align:center;margin:6px 0 24px}
-.brand h1{
-  margin:0;font-size:clamp(38px,8vw,62px);font-weight:950;letter-spacing:-2px;
-  background:linear-gradient(90deg,#fff 35%,#12e9ff 62%,#c52cff 92%);
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-  text-shadow:0 0 32px rgba(31,226,255,.16);
-}
-.brand h1:first-letter{color:white}
-.brand p{color:#c1c8df;font-size:clamp(16px,3.8vw,22px);margin:8px 0 0}
-.card{
-  background:linear-gradient(145deg,rgba(13,22,52,.92),rgba(8,13,32,.90));
-  border:1px solid rgba(80,111,220,.25);border-radius:28px;padding:22px;
-  margin:14px 0;box-shadow:0 22px 65px rgba(0,0,0,.35),inset 0 1px rgba(255,255,255,.04);
-}
-#lobby.card{
-  border:1px solid rgba(25,231,255,.30);
-  box-shadow:0 0 0 1px rgba(122,44,255,.12),0 22px 80px rgba(0,0,0,.42),0 0 70px rgba(39,77,255,.10);
-}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
-input,button,select,textarea{width:100%;border-radius:16px;border:1px solid rgba(255,255,255,.12);padding:14px;font:inherit}
-input,select,textarea{background:#080f25;color:white}
-button{
-  background:linear-gradient(100deg,#11dfff,#2e61ff 48%,#c800f5);
-  color:#fff;font-weight:850;cursor:pointer;border:0;
-  box-shadow:0 8px 28px rgba(32,94,255,.25);transition:.15s transform,.15s filter;
-}
-button:active{transform:scale(.985)}
-button.secondary{background:#172349}
-button.good{
-  background:linear-gradient(100deg,#12e6ff,#6d35ff 55%,#ee00e8);
-  color:white;font-size:18px;padding:17px;
-  box-shadow:0 0 28px rgba(31,202,255,.25),0 0 42px rgba(209,0,255,.14);
-}
-button.danger{background:#ff3e71}
-button:disabled{opacity:.5;cursor:not-allowed}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.pill{
-  display:inline-flex;padding:8px 13px;border-radius:999px;
-  background:rgba(51,66,130,.45);color:#e7ecff;font-size:13px;
-  border:1px solid rgba(120,145,255,.14)
-}
-.room{
-  font-size:clamp(34px,9vw,58px);font-weight:950;letter-spacing:8px;text-align:center;
-  padding:16px;background:rgba(2,8,25,.70);border-radius:20px;margin:12px 0;
-  color:var(--cyan);border:1px solid rgba(25,231,255,.55);
-  box-shadow:inset 0 0 35px rgba(20,100,255,.08),0 0 28px rgba(25,231,255,.08);
-}
-.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
-.player{
-  position:relative;background:rgba(7,14,35,.78);border-radius:20px;padding:16px;text-align:center;
-  border:1px solid rgba(71,91,183,.30);box-shadow:inset 0 1px rgba(255,255,255,.04)
-}
-.player:first-child{border-color:rgba(24,231,255,.75);box-shadow:0 0 24px rgba(24,231,255,.10),inset 0 1px rgba(255,255,255,.06)}
-.avatar{
-  width:82px;height:82px;border-radius:50%;margin:0 auto 10px;display:grid;place-items:center;font-size:39px;
-  background:linear-gradient(135deg,#0ee9ff,#7138ff 52%,#ee00e8);
-  box-shadow:0 0 25px rgba(58,120,255,.25);border:3px solid rgba(255,255,255,.08)
-}
-.status{color:var(--muted);font-size:13px}
-.big{font-size:23px;font-weight:900;line-height:1.25}
-.question{background:rgba(5,12,31,.82);border-radius:20px;padding:19px;margin:14px 0;border:1px solid rgba(91,113,219,.20)}
-.choice{text-align:left;margin:7px 0;background:linear-gradient(100deg,#182654,#26336c)}
-.choice.selected{outline:3px solid var(--green)}
-.notice{padding:13px 15px;border-radius:16px;background:rgba(11,67,57,.52);color:#caffef;border:1px solid rgba(24,243,154,.22)}
-.error{background:rgba(100,16,42,.65);color:#ffd9e4}
-.hidden{display:none!important}.small{font-size:12px;color:var(--muted)}.center{text-align:center}
-.timer{font-size:48px;font-weight:950;text-align:center;margin:10px 0}
-.vote-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px}
-footer{text-align:center;color:#8993b7;font-size:12px;margin-top:25px}
-#hostControls{margin-top:20px}
-#startBtn{position:relative;overflow:hidden}
-#startBtn:after{
-  content:"";position:absolute;inset:-2px;border-radius:inherit;pointer-events:none;
-  box-shadow:0 0 0 1px rgba(255,255,255,.10),0 0 35px rgba(232,0,255,.20);
-}
-.v4-badge{
-  display:inline-flex;align-items:center;gap:7px;margin:0 auto 13px;padding:7px 12px;border-radius:12px;
-  border:1px solid rgba(242,0,255,.6);background:rgba(75,0,110,.32);
-  color:#fff;font-weight:950;font-size:12px;letter-spacing:.8px;
-  box-shadow:0 0 20px rgba(230,0,255,.15);transform:rotate(-1deg)
-}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Play · V8</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
+.wrap{max-width:900px;margin:auto;padding:24px 18px 40px} .brand{text-align:center} .masks{font-size:48px;filter:drop-shadow(0 0 18px #c45cff)} h1{margin:4px 0;font-size:clamp(34px,8vw,64px);letter-spacing:-2px} .tag{opacity:.8;margin-bottom:18px}
+.card{background:rgba(15,18,43,.72);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:22px;box-shadow:0 18px 60px #0007;backdrop-filter:blur(12px);margin-top:18px}
+h2{margin-top:0} .grid{display:grid;gap:12px} input{width:100%;padding:15px;border-radius:14px;border:1px solid #ffffff22;background:#080d20;color:white;font-size:18px}
+button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:800;cursor:pointer;color:white;background:linear-gradient(90deg,#7b2cff,#d51cff);box-shadow:0 8px 28px #8b2cff55} button.secondary{background:#ffffff12;box-shadow:none;border:1px solid #ffffff18} button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap} .status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#16c78422;color:#7ff5bf;font-size:14px} .dot{width:9px;height:9px;border-radius:50%;background:#25e58b;box-shadow:0 0 10px #25e58b}
+.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:15px} .player{padding:14px;border:1px solid #ffffff15;border-radius:16px;background:#ffffff08}
+.hidden{display:none!important} .round{font-size:14px;opacity:.75;text-transform:uppercase;letter-spacing:2px} .category{display:inline-block;margin:12px 0;padding:7px 11px;border-radius:999px;background:#ffffff12;color:#e4c7ff} .question{font-size:clamp(25px,5vw,43px);line-height:1.13;font-weight:850;margin:8px 0 20px}
+.avatar{font-size:45px} .votegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px} .vote{background:#ffffff0b;border:1px solid #ffffff15;box-shadow:none} .result{font-size:20px;line-height:1.45} .tiny{font-size:13px;opacity:.6;text-align:center;margin-top:22px}
 </style>
-
-
-<style id="family-play-onboarding">
-.onboarding{min-height:calc(100vh - 40px);display:grid;place-items:center;padding:10px 0 28px}
-.onboard-card{
-  width:min(720px,100%);min-height:650px;padding:30px 22px 22px;border-radius:32px;
-  background:linear-gradient(145deg,rgba(13,22,52,.96),rgba(7,10,28,.96));
-  border:1px solid rgba(24,231,255,.28);
-  box-shadow:0 25px 90px rgba(0,0,0,.45),0 0 70px rgba(116,35,255,.12);
-  text-align:center;position:relative;overflow:hidden;
-}
-.onboard-card:before,.onboard-card:after{content:"";position:absolute;border-radius:50%;pointer-events:none;filter:blur(4px)}
-.onboard-card:before{width:220px;height:220px;left:-120px;bottom:-100px;background:rgba(0,220,255,.22)}
-.onboard-card:after{width:240px;height:240px;right:-130px;top:-100px;background:rgba(239,0,255,.18)}
-.onboard-brand{font-size:30px;font-weight:900;letter-spacing:-1px;margin-bottom:12px}
-.onboard-brand b{background:linear-gradient(90deg,#10e8ff,#b82cff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.onboard-badge{display:inline-block;border:1px solid rgba(230,0,255,.55);border-radius:999px;padding:7px 12px;font-size:11px;font-weight:900;letter-spacing:1px;color:#fff;background:rgba(86,0,120,.25)}
-.onboard-step{display:none;position:relative;z-index:1;min-height:480px;padding:25px 5px 5px}
-.onboard-step.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
-.hero-emoji{font-size:88px;filter:drop-shadow(0 0 25px rgba(24,231,255,.25));margin:5px 0 15px}
-.onboard-step h2{font-size:clamp(30px,7vw,48px);line-height:1.06;margin:8px 0 16px;font-weight:950;letter-spacing:-1px}
-.onboard-step h2 span{background:linear-gradient(90deg,#10e8ff,#a532ff,#ed00e8);-webkit-background-clip:text;background-clip:text;color:transparent}
-.onboard-step p{max-width:580px;color:#b9c2dc;font-size:17px;line-height:1.5;margin:0 auto 25px}
-.onboard-next{max-width:470px;padding:17px 20px;font-size:18px;margin-top:auto}
-.mini-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:600px;margin-bottom:20px}
-.mini-steps div{background:rgba(16,29,65,.8);border:1px solid rgba(70,96,190,.28);border-radius:18px;padding:12px 8px}
-.mini-steps strong{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#13e8ff,#8e2dff);font-size:17px}
-.mini-steps span{font-size:12px;color:#d5dbef;font-weight:700;line-height:1.25}
-.demo-avatar{font-size:72px;margin:8px 0}
-.remote-visual{font-size:52px;display:flex;align-items:center;gap:12px;margin:15px 0 25px}
-.remote-visual i{font-style:normal;font-size:26px;color:#19e7ff}
-.remote-note{display:inline-block;background:rgba(15,67,61,.55);border:1px solid rgba(24,243,154,.25);padding:12px 16px;border-radius:14px;color:#caffef;margin-bottom:20px}
-.onboard-dots{display:flex;justify-content:center;gap:8px;margin:6px 0 14px;position:relative;z-index:2}
-.on-dot{width:8px;height:8px;border-radius:50%;background:#3b466b;display:block}
-.on-dot.active{width:24px;border-radius:10px;background:linear-gradient(90deg,#14e8ff,#d000f5)}
-.skip-intro{background:transparent;box-shadow:none;color:#8792b7;font-size:12px;padding:8px;position:relative;z-index:2}
-.skip-intro:hover{filter:none}
-body.intro-done #onboarding{display:none}
-body:not(.intro-done) #home,body:not(.intro-done) #lobby,body:not(.intro-done) #game,body:not(.intro-done) #result{display:none!important}
-@media(max-width:520px){
-  .onboard-card{min-height:calc(100vh - 70px);padding:24px 17px 16px}
-  .onboard-step{min-height:475px}
-  .mini-steps{gap:6px}.mini-steps div{padding:10px 4px}
-  .mini-steps span{font-size:10px}.remote-visual{font-size:42px;gap:7px}
-}
-</style>
-
 </head>
 <body>
 <div class="wrap">
-  <div class="brand">
-    <div class="v4-badge">⚡ V5 · PRUEBA CONTROLADA</div>
-    <h1>🎭 Family Play</h1>
-    <p>Una familia. Una pantalla. Todos conectados.</p>
-  </div>
+  <div class="brand"><div class="masks">🎭</div><h1>Family Play</h1><div class="tag">Una familia. Una pantalla. Todos conectados.</div></div>
 
-  
-<section id="onboarding" class="onboarding">
-  <div class="onboard-card">
-    <div class="onboard-brand">🎭 <span>Family <b>Play</b></span></div>
-    <div class="onboard-badge">⚡ NUEVA EXPERIENCIA</div>
-
-    <div class="onboard-step active" data-step="1">
-      <div class="hero-emoji">👨‍👩‍👧‍👦</div>
-      <h2>Una familia.<br><span>Una pantalla.</span><br>Todos conectados.</h2>
-      <p>Family Play convierte a tu familia en los protagonistas de un show interactivo lleno de sorpresas, risas y desafíos.</p>
-      <button class="onboard-next">✨ Quiero jugar</button>
-    </div>
-
-    <div class="onboard-step" data-step="2">
-      <div class="mini-steps">
-        <div><strong>1</strong><span>Únete desde<br>tu celular</span></div>
-        <div><strong>2</strong><span>Alguien controla<br>un avatar</span></div>
-        <div><strong>3</strong><span>¡Adivinen<br>quién es!</span></div>
-      </div>
-      <div class="demo-avatar">🎭</div>
-      <h2>¿Quién está detrás<br>del avatar?</h2>
-      <p>Uno de ustedes controla en secreto el avatar de otro familiar. Los demás deberán descubrir quién está detrás.</p>
-      <button class="onboard-next">🎮 Así se juega</button>
-    </div>
-
-    <div class="onboard-step" data-step="3">
-      <div class="remote-visual">
-        <span>🇨🇴</span><i>↔</i><span>🇺🇸</span><i>↔</i><span>🇪🇸</span>
-      </div>
-      <h2>¿Familia a distancia?</h2>
-      <p>No importa dónde estén. Bogotá, Miami, Madrid o cualquier lugar: cada persona puede jugar desde su propio celular.</p>
-      <div class="remote-note">🌎 Todos en la misma partida.</div>
-      <button class="onboard-next">🚀 Conectar a mi familia</button>
-    </div>
-
-    <div class="onboard-dots"><i class="on-dot active"></i><i class="on-dot"></i><i class="on-dot"></i></div>
-    <button id="skipIntro" class="skip-intro">Ya conozco el juego · Entrar</button>
-  </div>
-</section>
-
-<section id="home" class="card">
-    <h2>Comenzar</h2>
+  <section id="onboarding" class="card">
+    <h2>😂 Una partida nunca será igual</h2>
+    <p>Ahora Family Play tiene <b>100 situaciones</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
     <div class="grid">
-      <div>
-        <h3>Crear sala</h3>
-        <input id="hostName" placeholder="Tu nombre" maxlength="24">
-        <button id="createBtn">Crear sala</button>
-      </div>
-      <div>
-        <h3>Unirse a una sala</h3>
-        <input id="joinName" placeholder="Tu nombre" maxlength="24">
-        <input id="joinCode" placeholder="Código (ej. ABC12)" maxlength="5" style="margin-top:8px;text-transform:uppercase">
-        <button id="joinBtn" style="margin-top:8px">Unirme</button>
-      </div>
+      <div>📱 Cada persona entra desde su celular.</div>
+      <div>🎭 Alguien interpreta o responde la situación.</div>
+      <div>🕵️ Los demás intentan descubrir quién está detrás.</div>
+      <div>🔥 La ronda 10 es el gran final.</div>
     </div>
-    <div id="homeMsg" class="notice hidden" style="margin-top:14px"></div>
+    <div class="row" style="margin-top:18px"><button onclick="showLobby()">¡Vamos a jugar!</button><button class="secondary" onclick="showLobby()">Ya conozco el juego</button></div>
   </section>
 
   <section id="lobby" class="card hidden">
-    <div class="center">
-      <div class="small">CÓDIGO DE LA SALA</div>
-      <div id="roomCode" class="room">-----</div>
-      <div id="connection" class="pill">Conectando…</div>
+    <div class="status"><span class="dot"></span> <span id="conn">Conectando…</span></div>
+    <div id="hostControls">
+      <h2>Crear una sala</h2>
+      <input id="hostName" placeholder="Tu nombre" maxlength="24">
+      <div class="row" style="margin-top:12px"><button onclick="createRoom()">Crear sala</button></div>
     </div>
-    <h2>Jugadores</h2>
-    <div id="players" class="players"></div>
-    <div id="hostControls" class="hidden" style="margin-top:18px">
-      <button id="startBtn" class="good" type="button">▶ Empezar Family Play</button>
+    <div id="joinControls">
+      <h2>Entrar a una sala</h2>
+      <input id="joinName" placeholder="Tu nombre" maxlength="24">
+      <input id="roomInput" placeholder="Código de sala" maxlength="8" style="margin-top:10px;text-transform:uppercase">
+      <div class="row" style="margin-top:12px"><button onclick="joinRoom()">Entrar</button></div>
     </div>
-    <div id="waiting" class="notice center" style="margin-top:14px">Esperando al anfitrión…</div>
+    <div id="roomInfo" class="hidden">
+      <h2>Sala <span id="roomCode"></span></h2>
+      <div id="players" class="players"></div>
+      <div class="row" style="margin-top:18px"><button id="startBtn" class="hidden" onclick="startGame()">🎭 Empezar Family Play</button></div>
+      <p id="wait" class="tiny">Comparte el código con tu familia.</p>
+    </div>
+    <div id="err" class="tiny"></div>
   </section>
 
   <section id="game" class="card hidden">
-    <div class="row" style="justify-content:space-between">
-      <span id="roundLabel" class="pill">Ronda 1</span>
-      <span id="phaseLabel" class="pill">Preparando</span>
-    </div>
-    <div id="gameContent"></div>
+    <div class="round">RONDA <span id="roundNo">1</span> / 10</div>
+    <div id="category" class="category"></div>
+    <div id="question" class="question"></div>
+    <div id="playersGame" class="votegrid"></div>
+    <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
+    <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-
-  <section id="result" class="card hidden">
-    <div class="center">
-      <div class="big">🏆 Resultado</div>
-      <div id="resultContent" style="margin-top:12px"></div>
-    </div>
-  </section>
-
-  <footer>Family Play MVP V5 • Realtime con Supabase</footer>
+  <div class="tiny">V8 · 100 situaciones · 10 rondas máximas · selección aleatoria</div>
 </div>
 
-<script type="module">
+<script>
 const SUPABASE_URL = "https://hbivgvetklqgiclxtyos.supabase.co";
 const SUPABASE_KEY = "sb_publishable_7C_LWcZfqN-6TcxDURNB7A_wcvyxoKL";
-const supabase = window.__createSupabaseClient(SUPABASE_URL, SUPABASE_KEY);
-
-const $ = id => document.getElementById(id);
-const state = {
-  me:null, room:null, channel:null, isHost:false,
-  players:{}, phase:"lobby", round:0, targetId:null, controllerId:null,
-  controllerChoice:null, votes:{}, assignments:{}
-};
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const situations = [
-  {q:"Llegas a un restaurante y te cobraron $20.000 de más. ¿Qué haces?", a:["Lo reclamo inmediatamente 😤","Me río y pago 😅","Llamo al mesero con mucha calma 😎"]},
-  {q:"Te encuentras $50.000 en la calle. ¿Qué harías?", a:["Busco al dueño","Me lo guardo","Pregunto alrededor y espero"]},
-  {q:"Tu familia propone un viaje y nadie quiere organizarlo. Tú…", a:["Tomo el control","Espero a que otro lo haga","Propongo votar entre todos"]},
-  {q:"Te llega un mensaje: “Tenemos que hablar”. Tu reacción es…", a:["Me preocupo 😳","Pregunto de una vez","Sigo con mi día"]},
-  {q:"En una reunión familiar ponen una canción que odias. Tú…", a:["La cambio discretamente","Me aguanto","Empiezo a bailarla de broma"]},
+  { category: `😂 Calentamiento`, text: `El control remoto desapareció justo cuando empieza el programa favorito. ¿Quién lo tiene y qué excusa inventaría?` },
+  { category: `😂 Calentamiento`, text: `Queda un solo pedazo de pizza. Todos dicen que no lo quieren. ¿Quién terminaría comiéndoselo a escondidas?` },
+  { category: `😂 Calentamiento`, text: `Alguien dice “ya voy” desde otra habitación. ¿Quién probablemente todavía no se ha levantado?` },
+  { category: `😂 Calentamiento`, text: `Hay que tomar una foto familiar. ¿Quién necesitaría 15 intentos para quedar bien?` },
+  { category: `😂 Calentamiento`, text: `Se acabó el café, pero alguien asegura que no fue esa persona. ¿Quién es el principal sospechoso?` },
+  { category: `😂 Calentamiento`, text: `Alguien dejó abierta la nevera. ¿Quién diría “yo no fui” con demasiada seguridad?` },
+  { category: `😂 Calentamiento`, text: `Todos buscan las llaves de la casa y estaban en el lugar más obvio. ¿Quién las dejó ahí?` },
+  { category: `😂 Calentamiento`, text: `Hay que escoger una película y nadie se pone de acuerdo. ¿Quién terminaría imponiendo su elección?` },
+  { category: `😂 Calentamiento`, text: `Alguien se queda dormido viendo una película y luego dice que la vio completa. ¿Quién sería?` },
+  { category: `😂 Calentamiento`, text: `Se escucha un ruido extraño en la casa. ¿Quién iría a investigar y quién se escondería?` },
+  { category: `🤣 Primeras risas`, text: `Alguien manda un audio de cinco minutos para decir algo que podía decir en diez segundos. ¿Quién lo haría?` },
+  { category: `🤣 Primeras risas`, text: `Una persona de la familia se equivoca de chat y manda un mensaje comprometedor al grupo familiar. ¿Quién sería?` },
+  { category: `🤣 Primeras risas`, text: `Alguien abre la nevera por quinta vez esperando que aparezca comida nueva. ¿Quién?` },
+  { category: `🤣 Primeras risas`, text: `Hay una visita inesperada y la casa está desordenada. ¿Quién escondería cosas debajo de la cama?` },
+  { category: `🤣 Primeras risas`, text: `Todos están listos para salir, pero falta una persona. ¿Quién siempre sería el último?` },
+  { category: `🤣 Primeras risas`, text: `Alguien compra algo innecesario y tiene que justificarlo ante toda la familia. ¿Qué compraría?` },
+  { category: `🤣 Primeras risas`, text: `Se pierde una media y aparece dentro de un lugar absurdo. ¿Quién sería capaz de dejarla ahí?` },
+  { category: `🤣 Primeras risas`, text: `Alguien dice “no tengo hambre” y cinco minutos después está comiendo del plato de otro. ¿Quién?` },
+  { category: `🤣 Primeras risas`, text: `Se va el internet durante diez minutos. ¿Quién sería el primero en preguntar cuándo vuelve?` },
+  { category: `🤣 Primeras risas`, text: `Alguien canta una canción creyendo que nadie lo escucha. ¿Quién tendría más confianza que talento?` },
+  { category: `🤪 Situación absurda`, text: `Un extraterrestre aterriza en la casa y pide hablar con una sola persona. ¿A quién escogería y por qué?` },
+  { category: `🤪 Situación absurda`, text: `Todos despiertan hablando con la voz de otro familiar. ¿Quién tendría la voz más insoportable?` },
+  { category: `🤪 Situación absurda`, text: `La familia queda encerrada toda una noche en un supermercado. ¿Quién empezaría a cocinar primero?` },
+  { category: `🤪 Situación absurda`, text: `La casa cobra vida y decide expulsar a una persona por desordenada. ¿A quién expulsaría?` },
+  { category: `🤪 Situación absurda`, text: `Durante 24 horas nadie puede mentir. ¿Quién tendría más problemas?` },
+  { category: `🤪 Situación absurda`, text: `Todos deben sobrevivir una semana sin celular. ¿Quién duraría menos de un día?` },
+  { category: `🤪 Situación absurda`, text: `La familia gana un viaje gratis, pero solo puede llevar a tres personas. ¿Quién intentaría negociar primero?` },
+  { category: `🤪 Situación absurda`, text: `Un robot llega a la casa y aprende a imitar a un familiar. ¿A quién imitaría primero?` },
+  { category: `🤪 Situación absurda`, text: `Por error, toda la familia aparece en televisión en vivo. ¿Quién aprovecharía para hacerse famoso?` },
+  { category: `🤪 Situación absurda`, text: `La mascota de la familia puede hablar durante cinco minutos. ¿Qué secreto familiar revelaría?` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría alguien de la familia al encontrar una cucaracha en el baño.` },
+  { category: `🎭 Imitación`, text: `Imita a la persona que dice que no tiene sueño y cinco minutos después está dormida.` },
+  { category: `🎭 Imitación`, text: `Imita cómo pediría perdón alguien de la familia después de comerse algo que no era suyo.` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría un familiar si le suben inesperadamente el precio de algo que quería comprar.` },
+  { category: `🎭 Imitación`, text: `Imita a alguien intentando explicar por qué llegó tarde.` },
+  { category: `🎭 Imitación`, text: `Imita cómo pediría un familiar que le presten dinero sin decir directamente que necesita dinero.` },
+  { category: `🎭 Imitación`, text: `Imita la reacción de alguien al descubrir que olvidó dónde estacionó el carro.` },
+  { category: `🎭 Imitación`, text: `Imita a un familiar tratando de convencer a todos de que una idea terrible es excelente.` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría alguien si descubre que su foto salió horrible en una reunión familiar.` },
+  { category: `🎭 Imitación`, text: `Imita a la persona de la familia que se desespera cuando el internet está lento.` },
+  { category: `😈 Se pone peligrosa`, text: `Se descubre quién se comió el último postre. ¿Quién sería y cuál sería su excusa?` },
+  { category: `😈 Se pone peligrosa`, text: `Hay que escoger quién cocina durante un mes. ¿A quién nadie elegiría?` },
+  { category: `😈 Se pone peligrosa`, text: `Alguien debe organizar el próximo viaje familiar. ¿Quién sería la peor opción?` },
+  { category: `😈 Se pone peligrosa`, text: `Solo una persona puede controlar el televisor durante toda la noche. ¿A quién jamás deberían darle el control?` },
+  { category: `😈 Se pone peligrosa`, text: `Hay que escoger quién sería el peor compañero de viaje. ¿Quién gana ese premio?` },
+  { category: `😈 Se pone peligrosa`, text: `Alguien tendría que administrar el dinero de la familia durante un mes. ¿Quién sería demasiado peligroso?` },
+  { category: `😈 Se pone peligrosa`, text: `¿Quién de la familia sería capaz de gastar dinero en algo completamente absurdo y defender la compra?` },
+  { category: `😈 Se pone peligrosa`, text: `¿Quién tiene más probabilidades de decir “yo sí sabía” después de que algo sale mal?` },
+  { category: `😈 Se pone peligrosa`, text: `¿Quién sobreviviría menos tiempo en una isla desierta y por qué?` },
+  { category: `😈 Se pone peligrosa`, text: `¿Quién sería capaz de convertirse en famoso y cambiar de personalidad al día siguiente?` },
+  { category: `🤯 Locura`, text: `Se va la luz durante toda la noche y aparece un fantasma. ¿Quién intentaría hablar con él?` },
+  { category: `🤯 Locura`, text: `Un zombie toca la puerta y dice que viene a buscar a una persona de la familia. ¿A quién viene a buscar?` },
+  { category: `🤯 Locura`, text: `Todos tienen que intercambiar vidas durante una semana. ¿Quién tendría la vida más difícil?` },
+  { category: `🤯 Locura`, text: `La familia gana un millón de dólares, pero quien grite primero pierde todo. ¿Quién pierde en cinco segundos?` },
+  { category: `🤯 Locura`, text: `Un hechizo hace que todos digan en voz alta lo que están pensando. ¿Quién causaría el primer problema?` },
+  { category: `🤯 Locura`, text: `Solo una persona puede representar a la familia en un concurso mundial de baile. ¿Quién se atrevería aunque no sepa bailar?` },
+  { category: `🤯 Locura`, text: `Una nave espacial llega y ofrece llevarse a una persona durante un año. ¿Quién aceptaría primero?` },
+  { category: `🤯 Locura`, text: `La familia tiene que formar una banda musical. ¿Quién sería el cantante y quién arruinaría el concierto?` },
+  { category: `🤯 Locura`, text: `Todos tienen que vivir una semana en una casa sin puertas. ¿Quién se adaptaría mejor?` },
+  { category: `🤯 Locura`, text: `Un científico ofrece convertir a un familiar en invisible durante 24 horas. ¿A quién jamás deberían darle ese poder?` },
+  { category: `🕵️ Culpable`, text: `Desapareció el último chocolate. Hay tres sospechosos. ¿Quién lo robó y qué pista lo delataría?` },
+  { category: `🕵️ Culpable`, text: `Alguien cambió la contraseña del Wi-Fi. ¿Quién sería el principal sospechoso y por qué?` },
+  { category: `🕵️ Culpable`, text: `Apareció una cuenta de restaurante que nadie reconoce. ¿Quién probablemente la pagó y qué pidió?` },
+  { category: `🕵️ Culpable`, text: `Alguien dejó un mensaje misterioso en la nevera. ¿Quién lo escribió y qué decía?` },
+  { category: `🕵️ Culpable`, text: `Desaparecieron cinco mil pesos del bolsillo de alguien. ¿Quién sería sospechoso y cuál sería su coartada?` },
+  { category: `🕵️ Culpable`, text: `Una planta de la casa aparece con gafas de sol. ¿Quién hizo la broma?` },
+  { category: `🕵️ Culpable`, text: `Alguien cambió el nombre del grupo familiar por uno absurdo. ¿Quién fue?` },
+  { category: `🕵️ Culpable`, text: `Aparece una foto vergonzosa de alguien en el grupo familiar. ¿Quién la publicó?` },
+  { category: `🕵️ Culpable`, text: `Alguien se comió el desayuno de otra persona y dejó una nota. ¿Qué diría la nota?` },
+  { category: `🕵️ Culpable`, text: `La alarma suena a las 4 de la mañana sin explicación. ¿Quién tendría la peor explicación?` },
+  { category: `🚗 Situaciones extremas`, text: `Van de viaje y nadie sabe dónde están. ¿Quién fingiría saber el camino?` },
+  { category: `🚗 Situaciones extremas`, text: `El carro se queda sin gasolina. ¿Quién diría “yo sabía que esto iba a pasar”?` },
+  { category: `🚗 Situaciones extremas`, text: `En un viaje familiar solo pueden llevar una maleta. ¿Quién intentaría meter la casa completa?` },
+  { category: `🚗 Situaciones extremas`, text: `El hotel perdió la reserva. ¿Quién sería el primero en armar una negociación?` },
+  { category: `🚗 Situaciones extremas`, text: `Todos tienen hambre y solo queda una empanada. ¿Quién usaría la estrategia más descarada para quedársela?` },
+  { category: `🚗 Situaciones extremas`, text: `Se pierde el grupo en un centro comercial. ¿Quién terminaría liderando la búsqueda?` },
+  { category: `🚗 Situaciones extremas`, text: `Un familiar se queda dormido y todos deben decidir si despertarlo. ¿Quién diría que no?` },
+  { category: `🚗 Situaciones extremas`, text: `En el aeropuerto anuncian que el vuelo sale en cinco minutos. ¿Quién todavía estaría comprando comida?` },
+  { category: `🚗 Situaciones extremas`, text: `El viaje dura diez horas y solo hay una canción disponible. ¿Quién pediría escucharla otra vez?` },
+  { category: `🚗 Situaciones extremas`, text: `Se cancela el viaje soñado. ¿Quién intentaría organizar otro viaje en diez minutos?` },
+  { category: `🔥 Gran final`, text: `La familia recibe un premio por ser la familia más divertida. ¿Quién daría el discurso más ridículo?` },
+  { category: `🔥 Gran final`, text: `Si esta familia tuviera un reality show, ¿quién sería el protagonista y quién el villano?` },
+  { category: `🔥 Gran final`, text: `Si cada familiar tuviera un superpoder inútil, ¿qué poder tendría cada uno?` },
+  { category: `🔥 Gran final`, text: `La familia debe crear una empresa juntos. ¿Quién sería el jefe y qué trabajo absurdo tendría cada uno?` },
+  { category: `🔥 Gran final`, text: `Si pudieran cambiar una regla de la casa para siempre, ¿quién pediría el cambio más descarado?` },
+  { category: `🔥 Gran final`, text: `Todos deben representar a otro familiar durante una cena. ¿Quién sería más difícil de imitar?` },
+  { category: `🔥 Gran final`, text: `Si la familia fuera un equipo de fútbol, ¿quién sería capitán, arquero y delantero?` },
+  { category: `🔥 Gran final`, text: `Si mañana todos intercambiaran celulares durante 24 horas, ¿quién entraría en pánico primero?` },
+  { category: `🔥 Gran final`, text: `Si pudieran elegir a un familiar para que sea presidente de la familia, ¿qué sería lo primero que prohibiría?` },
+  { category: `🔥 Gran final`, text: `Última ronda: inventen un premio absurdo para cada persona. ¿Quién gana el premio más inesperado?` },
+  { category: `🔥 Gran final`, text: `Si esta familia tuviera un himno oficial, ¿quién lo cantaría y qué frase absurda tendría?` },
+  { category: `🔥 Gran final`, text: `Si cada familiar fuera un personaje de una película, ¿quién sería el héroe y quién terminaría causando el desastre?` },
+  { category: `🔥 Gran final`, text: `La familia debe elegir un representante para negociar con extraterrestres. ¿Quién sería la peor elección?` },
+  { category: `🔥 Gran final`, text: `Si mañana todos tuvieran que vivir en la misma habitación durante una semana, ¿quién pediría salir primero?` },
+  { category: `🔥 Gran final`, text: `Si hubiera un campeonato mundial de excusas, ¿quién ganaría y cuál sería su excusa de campeonato?` },
+  { category: `🔥 Gran final`, text: `Si la familia tuviera una contraseña secreta que todos deben recordar, ¿quién la olvidaría primero?` },
+  { category: `🔥 Gran final`, text: `Si esta familia tuviera un himno oficial, ¿quién lo cantaría y qué frase absurda tendría?` },
+  { category: `🔥 Gran final`, text: `Si cada familiar fuera un personaje de una película, ¿quién sería el héroe y quién terminaría causando el desastre?` },
+  { category: `🔥 Gran final`, text: `La familia debe elegir un representante para negociar con extraterrestres. ¿Quién sería la peor elección?` },
+  { category: `🔥 Gran final`, text: `Si mañana todos tuvieran que vivir en la misma habitación durante una semana, ¿quién pediría salir primero?` }
 ];
 
-function msg(text, error=false) {
-  $("homeMsg").textContent = text;
-  $("homeMsg").className = "notice" + (error ? " error" : "");
-  $("homeMsg").classList.remove("hidden");
-}
-function show(id) {
-  ["home","lobby","game","result"].forEach(x => $(x).classList.toggle("hidden", x!==id));
-}
-function code() { return Math.random().toString(36).slice(2,7).toUpperCase(); }
-function avatar(name) {
-  const emojis=["😎","🤠","🦊","🐯","🐼","🐸","🦁","🐵","🐨","🐙"];
-  let n=0; for (const c of name) n+=c.charCodeAt(0);
-  return emojis[n%emojis.length];
-}
-function renderPlayers() {
-  $("players").innerHTML = Object.values(state.players).map(p => `
-    <div class="player">
-      <div class="avatar">${p.emoji || avatar(p.name)}</div>
-      <strong>${escapeHtml(p.name)}</strong>
-      <div class="status">${p.id===state.me?.id ? "Tú" : (p.isHost ? "Anfitrión" : "Jugador")}</div>
-    </div>`).join("");
-}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));}
+let channel=null, room="", isHost=false, me="", myId="", players={}, round=0, used=[];
 
-async function connect(roomCode) {
-  state.room = roomCode;
-  state.channel = supabase.channel("family-play-"+roomCode, {
-    config:{ broadcast:{self:false}, presence:{key:state.me.id} }
+function $(id){return document.getElementById(id)}
+function show(id){$(id).classList.remove("hidden")}
+function hide(id){$(id).classList.add("hidden")}
+function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
+
+async function setupRealtime(){
+  if(channel) return;
+  channel=sb.channel("family-play-v8");
+  channel.on("broadcast",{event:"HELLO"},async({payload})=>{
+    if(isHost && payload && payload.room===room) await channel.send({type:"broadcast",event:"WELCOME",payload:{room,players}});
   });
-
-  state.channel
-    .on("broadcast",{event:"HELLO"},async ({payload})=>{
-      if(state.isHost) {
-        if(payload && payload.player) {
-          state.players[payload.player.id] = payload.player;
-          renderPlayers();
-          await sendState();
-        }
-      }
-    })
-    .on("broadcast",{event:"STATE"},({payload})=>{
-      if(!state.isHost && payload?.state) applyState(payload.state);
-    })
-    .on("broadcast",{event:"START"},({payload})=>{
-      if(payload?.roundState) {
-        applyRoundState(payload.roundState);
-        show("game");
-        renderGame();
-      }
-    })
-    .on("broadcast",{event:"CONTROLLER_CHOICE"},({payload})=>{
-      if(state.isHost) {
-        state.controllerChoice = payload.choice;
-        state.phase="vote";
-        sendState();
-        renderGame();
-      }
-    })
-    .on("broadcast",{event:"VOTE"},({payload})=>{
-      if(state.isHost && payload?.voterId && payload?.targetId) {
-        state.votes[payload.voterId]=payload.targetId;
-        sendState();
-        renderGame();
-        if(Object.keys(state.votes).length >= Object.keys(state.players).length) reveal();
-      }
-    });
-
-  const status = await state.channel.subscribe(async (status)=>{
-    $("connection").textContent = status === "SUBSCRIBED" ? "🟢 Conectado" : "🟡 "+status;
-    if(status === "SUBSCRIBED") {
-      await state.channel.track({id:state.me.id,name:state.me.name,isHost:state.isHost});
-      if(!state.isHost) {
-        await broadcast("HELLO",{player:state.me});
-      } else {
-        state.players[state.me.id]=state.me;
-        renderPlayers();
-      }
+  channel.on("broadcast",{event:"SYNC"},({payload})=>{
+    if(!payload || payload.room!==room) return;
+    players=payload.players||players; round=payload.round||round; used=payload.used||used;
+    renderPlayers(); if(payload.game) renderGame(payload.game);
+  });
+  channel.on("broadcast",{event:"JOIN"},async({payload})=>{
+    if(isHost && payload && payload.room===room){
+      players[payload.id]={name:payload.name};
+      await sync();
     }
   });
-}
-
-async function broadcast(event,payload) {
-  if(state.channel) await state.channel.send({type:"broadcast",event,payload});
-}
-function snapshot(){
-  return {
-    players:state.players, phase:state.phase, round:state.round,
-    targetId:state.targetId, controllerId:state.controllerId,
-    controllerChoice:state.controllerChoice, votes:state.votes
-  };
-}
-function sendState(){ return broadcast("STATE",{state:snapshot()}); }
-function applyState(s){
-  Object.assign(state,{players:s.players||{},phase:s.phase||"lobby",round:s.round||0,targetId:s.targetId||null,controllerId:s.controllerId||null,controllerChoice:s.controllerChoice||null,votes:s.votes||{}});
-  renderPlayers();
-  if(state.phase==="lobby"){show("lobby");$("waiting").classList.remove("hidden");}
-  else {show("game");renderGame();}
-}
-function applyRoundState(s){
-  Object.assign(state,{round:s.round,targetId:s.targetId,controllerId:s.controllerId,controllerChoice:s.controllerChoice||null,votes:s.votes||{},phase:s.phase||"controller"});
-  if(s.players) state.players=s.players;
-  renderPlayers(); renderGame();
-}
-
-$("createBtn").onclick=async()=>{
-  const name=$("hostName").value.trim();
-  if(!name) return msg("Escribe tu nombre.",true);
-  state.me={id:crypto.randomUUID(),name,isHost:true,emoji:avatar(name)};
-  state.isHost=true; state.room=code();
-  $("roomCode").textContent=state.room;
-  show("lobby"); $("hostControls").classList.remove("hidden"); $("waiting").classList.add("hidden");
-  try { await connect(state.room); } catch(e){ msg("No fue posible conectar: "+e.message,true); show("home"); }
-};
-$("joinBtn").onclick=async()=>{
-  const name=$("joinName").value.trim(), room=$("joinCode").value.trim().toUpperCase();
-  if(!name || room.length!==5) return msg("Escribe nombre y un código de 5 caracteres.",true);
-  state.me={id:crypto.randomUUID(),name,isHost:false,emoji:avatar(name)};
-  state.isHost=false;
-  $("roomCode").textContent=room;
-  show("lobby");
-  try { await connect(room); } catch(e){ msg("No fue posible conectar: "+e.message,true); show("home"); }
-};
-
-window.__familyPlayStartRound = startRound;
-window.__familyPlayBooted = true;
-window.startGame = async () => {
-  const btn = document.getElementById("startBtn");
-  try {
-    if (!state.isHost) {
-      alert("Solo el anfitrión puede iniciar la partida.");
-      return false;
-    }
-    const ids = Object.keys(state.players);
-    if (ids.length < 2) {
-      if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
-      alert("Primero necesitamos al menos 2 jugadores conectados.");
-      return false;
-    }
-    if (btn) { btn.disabled = true; btn.textContent = "⏳ Iniciando..."; }
-    await startRound();
-    return true;
-  } catch (e) {
-    console.error("startGame", e);
-    if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
-    alert("No se pudo iniciar: " + (e?.message || e));
-    return false;
-  }
-};
-$("startBtn").onclick = window.startGame;
-
-async function startRound(){
-  state.round++;
-  state.phase="controller";
-  state.votes={}; state.controllerChoice=null;
-  const ids=Object.keys(state.players);
-  state.targetId=ids[Math.floor(Math.random()*ids.length)];
-  const possible=ids.filter(x=>x!==state.targetId);
-  state.controllerId=possible[Math.floor(Math.random()*possible.length)];
-  const rs={round:state.round,phase:"controller",targetId:state.targetId,controllerId:state.controllerId,controllerChoice:null,votes:{},players:state.players};
-  await broadcast("START",{roundState:rs});
-  await sendState();
-  show("game");
-  renderGame();
-}
-
-function renderGame(){
-  $("roundLabel").textContent="Ronda "+state.round;
-  $("phaseLabel").textContent=state.phase==="controller"?"🎭 Suplantación":state.phase==="vote"?"🗳️ Votación":"🏁 Resultado";
-  const target=state.players[state.targetId];
-  const situation=situations[(state.round-1)%situations.length];
-
-  if(state.phase==="controller"){
-    if(state.me.id===state.controllerId){
-      $("gameContent").innerHTML=`
-        <div class="question">
-          <div class="small">TÚ CONTROLAS EL AVATAR DE</div>
-          <div class="big">${avatar(target?.name||"")} ${escapeHtml(target?.name||"Jugador")}</div>
-          <p>${escapeHtml(situation.q)}</p>
-          <p class="small">Responde como crees que respondería esa persona. Los demás no sabrán que eres tú.</p>
-          ${situation.a.map((x,i)=>`<button class="choice" onclick="controllerAnswer(${i})">${escapeHtml(x)}</button>`).join("")}
-        </div>`;
-    } else {
-      $("gameContent").innerHTML=`
-        <div class="center">
-          <div class="avatar">${avatar(target?.name||"")}</div>
-          <div class="big">${escapeHtml(target?.name||"Jugador")} está en una situación…</div>
-          <p class="small">Alguien de la familia está controlando este avatar. Espera la respuesta.</p>
-          <div class="timer">🎭</div>
-        </div>`;
-    }
-  } else if(state.phase==="vote"){
-    const answer = situation.a[state.controllerChoice ?? 0];
-    $("gameContent").innerHTML=`
-      <div class="question">
-        <div class="small">¿QUIÉN ESTÁ DETRÁS DEL AVATAR DE ${escapeHtml(target?.name||"JUGADOR")}?</div>
-        <div class="big">${avatar(target?.name||"")} ${escapeHtml(target?.name||"Jugador")}</div>
-        <p><strong>Situación:</strong> ${escapeHtml(situation.q)}</p>
-        <p><strong>Respuesta:</strong> ${escapeHtml(answer)}</p>
-      </div>
-      <div class="vote-grid">
-      ${Object.values(state.players).filter(p=>p.id!==state.targetId).map(p=>`
-        <button class="choice" onclick="voteFor('${p.id}')" ${state.votes[state.me.id]?'disabled':''}>
-          ${p.emoji||avatar(p.name)}<br>${escapeHtml(p.name)}
-        </button>`).join("")}
-      </div>
-      <p class="small center">${Object.keys(state.votes).length}/${Object.keys(state.players).length} votos</p>`;
-  } else {
-    renderResult();
-  }
-}
-
-window.controllerAnswer=async(choice)=>{
-  if(state.me.id!==state.controllerId || state.phase!=="controller") return;
-  state.controllerChoice=choice; state.phase="vote";
-  await broadcast("CONTROLLER_CHOICE",{choice});
-  sendState(); renderGame();
-};
-window.voteFor=async(targetId)=>{
-  if(state.votes[state.me.id]) return;
-  state.votes[state.me.id]=targetId;
-  await broadcast("VOTE",{voterId:state.me.id,targetId});
-  sendState(); renderGame();
-  if(state.isHost && Object.keys(state.votes).length>=Object.keys(state.players).length) reveal();
-};
-
-function reveal(){
-  state.phase="result";
-  sendState(); renderResult(); show("game");
-}
-function renderResult(){
-  const controller=state.players[state.controllerId];
-  const target=state.players[state.targetId];
-  const counts={};
-  Object.values(state.votes).forEach(x=>counts[x]=(counts[x]||0)+1);
-  const guessed=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0];
-  const winner=guessed===state.controllerId;
-  $("phaseLabel").textContent="🏁 Resultado";
-  $("gameContent").innerHTML=`
-    <div class="center">
-      <div class="big">${winner?"🎉 ¡Lo descubrieron!":"😂 ¡Cayeron en la trampa!"}</div>
-      <div class="question">
-        <p>El avatar era de <strong>${escapeHtml(target?.name||"Jugador")}</strong>.</p>
-        <p>Quien realmente lo controló fue <strong>${escapeHtml(controller?.name||"Jugador")}</strong>.</p>
-        <p>La mayoría votó por <strong>${escapeHtml(state.players[guessed]?.name||"nadie")}</strong>.</p>
-      </div>
-      ${state.isHost?`<button class="good" onclick="nextRound()">▶ Siguiente ronda</button>`:"<p class='small'>Esperando al anfitrión…</p>"}
-    </div>`;
-}
-window.nextRound=()=>{ if(state.isHost) startRound(); };
-
-renderPlayers();
-</script>
-
-<script>
-(function(){
-  document.addEventListener("click", function(ev){
-    const btn = ev.target.closest && ev.target.closest("#startBtn");
-    if (!btn) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    try {
-      if (typeof window.startGame === "function") {
-        window.startGame();
-      } else if (typeof window.__familyPlayStartRound === "function") {
-        window.__familyPlayStartRound();
-      } else {
-        alert("La aplicación todavía está cargando. Recarga la página e inténtalo de nuevo.");
-      }
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = "▶ Empezar Family Play";
-      alert("No se pudo iniciar: " + (e && e.message ? e.message : e));
-    }
-  }, true);
-})();
-</script>
-
-
-<script>
-(function(){
-  const steps=[...document.querySelectorAll(".onboard-step")];
-  const dots=[...document.querySelectorAll(".on-dot")];
-  let current=0;
-  function paint(){
-    steps.forEach((s,i)=>s.classList.toggle("active",i===current));
-    dots.forEach((d,i)=>d.classList.toggle("active",i===current));
-  }
-  function finishIntro(){
-    document.body.classList.add("intro-done");
-    try{localStorage.setItem("family_play_intro_seen","1")}catch(e){}
-  }
-  document.querySelectorAll(".onboard-next").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      if(current<steps.length-1){current++;paint()}else{finishIntro();}
-    });
+  channel.on("broadcast",{event:"START"},({payload})=>{
+    if(payload && payload.room===room){ round=payload.round; used=payload.used||[]; renderGame(payload.game); }
   });
-  document.getElementById("skipIntro").addEventListener("click",finishIntro);
-  // First visit always shows the assistant. Returning users can skip it with the button.
-  paint();
-})();
+  channel.on("broadcast",{event:"NEXT"},({payload})=>{
+    if(payload && payload.room===room){ round=payload.round; used=payload.used||[]; renderGame(payload.game); }
+  });
+  await channel.subscribe((status)=>{ if(status==="SUBSCRIBED") $("conn").textContent="Conectado"; });
+}
+
+function newCode(){return Math.random().toString(36).slice(2,8).toUpperCase()}
+function pickSituation(){
+  let available=situations.map((_,i)=>i).filter(i=>!used.includes(i));
+  if(!available.length){ used=[]; available=situations.map((_,i)=>i); }
+  const blockIndex=Math.min(round-1,9);
+  const block=available.filter(i=>Math.floor(i/10)===blockIndex);
+  const pool=block.length?block:available;
+  const idx=pool[Math.floor(Math.random()*pool.length)];
+  used.push(idx);
+  return situations[idx];
+}
+
+async function createRoom(){
+  me=$("hostName").value.trim()||"Anfitrión"; myId="host"; room=newCode(); isHost=true;
+  players={host:{name:me}};
+  hide("hostControls"); hide("joinControls"); show("roomInfo"); $("roomCode").textContent=room; show("startBtn");
+  renderPlayers(); await sync();
+}
+async function joinRoom(){
+  me=$("joinName").value.trim()||"Jugador"; myId=crypto.randomUUID(); room=$("roomInput").value.trim().toUpperCase();
+  if(!room) return $("err").textContent="Escribe el código de la sala.";
+  isHost=false; hide("hostControls"); hide("joinControls"); show("roomInfo"); $("roomCode").textContent=room;
+  await channel.send({type:"broadcast",event:"JOIN",payload:{room,name:me,id:myId}});
+  await channel.send({type:"broadcast",event:"HELLO",payload:{room}});
+  $("wait").textContent="Esperando sincronización con el anfitrión…";
+}
+async function sync(){await channel.send({type:"broadcast",event:"SYNC",payload:{room,players,round,used,game:null}})}
+function renderPlayers(){
+  $("players").innerHTML=Object.values(players).map(p=>`<div class="player"><div class="avatar">🙂</div><b>${p.name}</b></div>`).join("");
+  $("playersGame").innerHTML=Object.entries(players).map(([id,p])=>`<button class="vote" onclick="vote('${id}')">🎭 ${p.name}</button>`).join("");
+}
+async function startGame(){
+  if(!isHost) return;
+  round=1; used=[]; const game=pickSituation(); const payload={room,round,used,game};
+  renderGame(game); await channel.send({type:"broadcast",event:"START",payload});
+}
+async function nextRound(){
+  if(!isHost) return;
+  if(round>=10){ $("result").innerHTML="🏆 <b>¡Partida terminada!</b><br>¿Otra partida? Family Play elegirá otras 10 situaciones. 😈"; $("hostNext").classList.add("hidden"); return; }
+  round++; const game=pickSituation(); const payload={room,round,used,game};
+  renderGame(game); await channel.send({type:"broadcast",event:"NEXT",payload});
+}
+function renderGame(game){
+  hide("lobby"); show("game"); $("roundNo").textContent=round; $("category").textContent=game.category; $("question").textContent=game.text;
+  $("result").textContent=""; $("hostNext").classList.toggle("hidden",!isHost); renderPlayers();
+}
+function vote(id){
+  const p=players[id]; if(!p) return;
+  $("result").textContent=`🗳️ Tu voto: ${p.name}`;
+}
+setupRealtime().catch(e=>{ $("err").textContent="Error de conexión: "+e.message; });
 </script>
-
-
-<script>
-window.addEventListener("error", function(e){
-  const msg = document.getElementById("homeMsg");
-  if (!msg) return;
-  msg.textContent = "Error de carga: " + (e.message || "JavaScript");
-  msg.className = "notice error";
-  msg.classList.remove("hidden");
-});
-window.addEventListener("unhandledrejection", function(e){
-  const msg = document.getElementById("homeMsg");
-  if (!msg) return;
-  const reason = e.reason && e.reason.message ? e.reason.message : String(e.reason || "Promesa");
-  msg.textContent = "Error de conexión: " + reason;
-  msg.className = "notice error";
-  msg.classList.remove("hidden");
-});
-</script>
-
 </body>
 </html>
