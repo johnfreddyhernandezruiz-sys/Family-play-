@@ -115,16 +115,102 @@ footer{text-align:center;color:#8993b7;font-size:12px;margin-top:25px}
 }
 </style>
 
+
+<style id="family-play-onboarding">
+.onboarding{min-height:calc(100vh - 40px);display:grid;place-items:center;padding:10px 0 28px}
+.onboard-card{
+  width:min(720px,100%);min-height:650px;padding:30px 22px 22px;border-radius:32px;
+  background:linear-gradient(145deg,rgba(13,22,52,.96),rgba(7,10,28,.96));
+  border:1px solid rgba(24,231,255,.28);
+  box-shadow:0 25px 90px rgba(0,0,0,.45),0 0 70px rgba(116,35,255,.12);
+  text-align:center;position:relative;overflow:hidden;
+}
+.onboard-card:before,.onboard-card:after{content:"";position:absolute;border-radius:50%;pointer-events:none;filter:blur(4px)}
+.onboard-card:before{width:220px;height:220px;left:-120px;bottom:-100px;background:rgba(0,220,255,.22)}
+.onboard-card:after{width:240px;height:240px;right:-130px;top:-100px;background:rgba(239,0,255,.18)}
+.onboard-brand{font-size:30px;font-weight:900;letter-spacing:-1px;margin-bottom:12px}
+.onboard-brand b{background:linear-gradient(90deg,#10e8ff,#b82cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.onboard-badge{display:inline-block;border:1px solid rgba(230,0,255,.55);border-radius:999px;padding:7px 12px;font-size:11px;font-weight:900;letter-spacing:1px;color:#fff;background:rgba(86,0,120,.25)}
+.onboard-step{display:none;position:relative;z-index:1;min-height:480px;padding:25px 5px 5px}
+.onboard-step.active{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hero-emoji{font-size:88px;filter:drop-shadow(0 0 25px rgba(24,231,255,.25));margin:5px 0 15px}
+.onboard-step h2{font-size:clamp(30px,7vw,48px);line-height:1.06;margin:8px 0 16px;font-weight:950;letter-spacing:-1px}
+.onboard-step h2 span{background:linear-gradient(90deg,#10e8ff,#a532ff,#ed00e8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.onboard-step p{max-width:580px;color:#b9c2dc;font-size:17px;line-height:1.5;margin:0 auto 25px}
+.onboard-next{max-width:470px;padding:17px 20px;font-size:18px;margin-top:auto}
+.mini-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:600px;margin-bottom:20px}
+.mini-steps div{background:rgba(16,29,65,.8);border:1px solid rgba(70,96,190,.28);border-radius:18px;padding:12px 8px}
+.mini-steps strong{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;margin:0 auto 8px;background:linear-gradient(135deg,#13e8ff,#8e2dff);font-size:17px}
+.mini-steps span{font-size:12px;color:#d5dbef;font-weight:700;line-height:1.25}
+.demo-avatar{font-size:72px;margin:8px 0}
+.remote-visual{font-size:52px;display:flex;align-items:center;gap:12px;margin:15px 0 25px}
+.remote-visual i{font-style:normal;font-size:26px;color:#19e7ff}
+.remote-note{display:inline-block;background:rgba(15,67,61,.55);border:1px solid rgba(24,243,154,.25);padding:12px 16px;border-radius:14px;color:#caffef;margin-bottom:20px}
+.onboard-dots{display:flex;justify-content:center;gap:8px;margin:6px 0 14px;position:relative;z-index:2}
+.on-dot{width:8px;height:8px;border-radius:50%;background:#3b466b;display:block}
+.on-dot.active{width:24px;border-radius:10px;background:linear-gradient(90deg,#14e8ff,#d000f5)}
+.skip-intro{background:transparent;box-shadow:none;color:#8792b7;font-size:12px;padding:8px;position:relative;z-index:2}
+.skip-intro:hover{filter:none}
+body.intro-done #onboarding{display:none}
+body:not(.intro-done) #home,body:not(.intro-done) #lobby,body:not(.intro-done) #game,body:not(.intro-done) #result{display:none!important}
+@media(max-width:520px){
+  .onboard-card{min-height:calc(100vh - 70px);padding:24px 17px 16px}
+  .onboard-step{min-height:475px}
+  .mini-steps{gap:6px}.mini-steps div{padding:10px 4px}
+  .mini-steps span{font-size:10px}.remote-visual{font-size:42px;gap:7px}
+}
+</style>
+
 </head>
 <body>
 <div class="wrap">
   <div class="brand">
-    <div class="v4-badge">⚡ V4 · ÚLTIMA VERSIÓN DE PRUEBA</div>
+    <div class="v4-badge">⚡ V5 · PRUEBA CONTROLADA</div>
     <h1>🎭 Family Play</h1>
     <p>Una familia. Una pantalla. Todos conectados.</p>
   </div>
 
-  <section id="home" class="card">
+  
+<section id="onboarding" class="onboarding">
+  <div class="onboard-card">
+    <div class="onboard-brand">🎭 <span>Family <b>Play</b></span></div>
+    <div class="onboard-badge">⚡ NUEVA EXPERIENCIA</div>
+
+    <div class="onboard-step active" data-step="1">
+      <div class="hero-emoji">👨‍👩‍👧‍👦</div>
+      <h2>Una familia.<br><span>Una pantalla.</span><br>Todos conectados.</h2>
+      <p>Family Play convierte a tu familia en los protagonistas de un show interactivo lleno de sorpresas, risas y desafíos.</p>
+      <button class="onboard-next">✨ Quiero jugar</button>
+    </div>
+
+    <div class="onboard-step" data-step="2">
+      <div class="mini-steps">
+        <div><strong>1</strong><span>Únete desde<br>tu celular</span></div>
+        <div><strong>2</strong><span>Alguien controla<br>un avatar</span></div>
+        <div><strong>3</strong><span>¡Adivinen<br>quién es!</span></div>
+      </div>
+      <div class="demo-avatar">🎭</div>
+      <h2>¿Quién está detrás<br>del avatar?</h2>
+      <p>Uno de ustedes controla en secreto el avatar de otro familiar. Los demás deberán descubrir quién está detrás.</p>
+      <button class="onboard-next">🎮 Así se juega</button>
+    </div>
+
+    <div class="onboard-step" data-step="3">
+      <div class="remote-visual">
+        <span>🇨🇴</span><i>↔</i><span>🇺🇸</span><i>↔</i><span>🇪🇸</span>
+      </div>
+      <h2>¿Familia a distancia?</h2>
+      <p>No importa dónde estén. Bogotá, Miami, Madrid o cualquier lugar: cada persona puede jugar desde su propio celular.</p>
+      <div class="remote-note">🌎 Todos en la misma partida.</div>
+      <button class="onboard-next">🚀 Conectar a mi familia</button>
+    </div>
+
+    <div class="onboard-dots"><i class="on-dot active"></i><i class="on-dot"></i><i class="on-dot"></i></div>
+    <button id="skipIntro" class="skip-intro">Ya conozco el juego · Entrar</button>
+  </div>
+</section>
+
+<section id="home" class="card">
     <h2>Comenzar</h2>
     <div class="grid">
       <div>
@@ -171,7 +257,7 @@ footer{text-align:center;color:#8993b7;font-size:12px;margin-top:25px}
     </div>
   </section>
 
-  <footer>Family Play MVP V4 • Realtime con Supabase</footer>
+  <footer>Family Play MVP V5 • Realtime con Supabase</footer>
 </div>
 
 <script type="module">
@@ -227,9 +313,11 @@ async function connect(roomCode) {
   state.channel
     .on("broadcast",{event:"HELLO"},({payload})=>{
       if(state.isHost) {
-        if(payload && payload.player) state.players[payload.player.id] = payload.player;
-        sendState();
-        renderPlayers();
+        if(payload && payload.player) {
+          state.players[payload.player.id] = payload.player;
+          renderPlayers();
+          await sendState();
+        }
       }
     })
     .on("broadcast",{event:"STATE"},({payload})=>{
@@ -283,7 +371,7 @@ function snapshot(){
     controllerChoice:state.controllerChoice, votes:state.votes
   };
 }
-function sendState(){ broadcast("STATE",{state:snapshot()}); }
+function sendState(){ return broadcast("STATE",{state:snapshot()}); }
 function applyState(s){
   Object.assign(state,{players:s.players||{},phase:s.phase||"lobby",round:s.round||0,targetId:s.targetId||null,controllerId:s.controllerId||null,controllerChoice:s.controllerChoice||null,votes:s.votes||{}});
   renderPlayers();
@@ -317,25 +405,31 @@ $("joinBtn").onclick=async()=>{
 
 window.__familyPlayStartRound = startRound;
 window.startGame = async () => {
+  const btn = document.getElementById("startBtn");
   try {
     if (!state.isHost) {
       alert("Solo el anfitrión puede iniciar la partida.");
-      return;
+      return false;
     }
     const ids = Object.keys(state.players);
     if (ids.length < 2) {
-      alert("Necesitamos al menos 2 jugadores para probar.");
-      return;
+      alert("Primero necesitamos al menos 2 jugadores conectados.");
+      if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
+      return false;
     }
-    startRound();
+    if (btn) { btn.disabled = true; btn.textContent = "⏳ Iniciando..."; }
+    await startRound();
+    return true;
   } catch (e) {
     console.error(e);
-    alert("Error al iniciar la partida: " + (e?.message || e));
+    if (btn) { btn.disabled = false; btn.textContent = "▶ Empezar Family Play"; }
+    alert("No se pudo iniciar: " + (e?.message || e));
+    return false;
   }
 };
 $("startBtn").onclick = window.startGame;
 
-function startRound(){
+async function startRound(){
   state.round++;
   state.phase="controller";
   state.votes={}; state.controllerChoice=null;
@@ -344,8 +438,9 @@ function startRound(){
   const possible=ids.filter(x=>x!==state.targetId);
   state.controllerId=possible[Math.floor(Math.random()*possible.length)];
   const rs={round:state.round,phase:"controller",targetId:state.targetId,controllerId:state.controllerId,controllerChoice:null,votes:{},players:state.players};
-  broadcast("START",{roundState:rs});
-  sendState();
+  await broadcast("START",{roundState:rs});
+  await sendState();
+  show("game");
   renderGame();
 }
 
@@ -444,16 +539,12 @@ renderPlayers();
     if (!btn) return;
     ev.preventDefault();
     ev.stopPropagation();
-    btn.disabled = true;
-    btn.textContent = "⏳ Iniciando...";
     try {
       if (typeof window.startGame === "function") {
         window.startGame();
       } else if (typeof window.__familyPlayStartRound === "function") {
         window.__familyPlayStartRound();
       } else {
-        btn.disabled = false;
-        btn.textContent = "▶ Empezar Family Play";
         alert("La aplicación todavía está cargando. Recarga la página e inténtalo de nuevo.");
       }
     } catch (e) {
@@ -462,6 +553,31 @@ renderPlayers();
       alert("No se pudo iniciar: " + (e && e.message ? e.message : e));
     }
   }, true);
+})();
+</script>
+
+
+<script>
+(function(){
+  const steps=[...document.querySelectorAll(".onboard-step")];
+  const dots=[...document.querySelectorAll(".on-dot")];
+  let current=0;
+  function paint(){
+    steps.forEach((s,i)=>s.classList.toggle("active",i===current));
+    dots.forEach((d,i)=>d.classList.toggle("active",i===current));
+  }
+  function finishIntro(){
+    document.body.classList.add("intro-done");
+    try{localStorage.setItem("family_play_intro_seen","1")}catch(e){}
+  }
+  document.querySelectorAll(".onboard-next").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      if(current<steps.length-1){current++;paint()}else{finishIntro();}
+    });
+  });
+  document.getElementById("skipIntro").addEventListener("click",finishIntro);
+  // First visit always shows the assistant. Returning users can skip it with the button.
+  paint();
 })();
 </script>
 
