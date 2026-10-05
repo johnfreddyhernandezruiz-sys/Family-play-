@@ -202,7 +202,7 @@ let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],s
 let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
 let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
 let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
-let joinRetry=null,lobbyHeartbeat=null;
+let joinRetry=null,lobbyHeartbeat=null,realtimeReady=null;
 let rtcPeers={},rtcIceQueues={};
 let rtcIceServers=[
   {urls:"stun:stun.l.google.com:19302"},
@@ -235,12 +235,22 @@ async function broadcast(event,payload={}){
 }
 
 async function setupRealtime(){
-  if(channel)return;
+  if(realtimeReady)return realtimeReady;
+  realtimeReady=(async()=>{
   await loadTurnCredentials();
   channel=sb.channel("family-play-v10",{config:{broadcast:{ack:true}}});
 
-  channel.on("broadcast",{event:"HELLO"},({payload})=>{
-    if(isHost&&payload?.room===room)syncState();
+  channel.on("broadcast",{event:"HELLO"},async({payload})=>{
+    if(!isHost||payload?.room!==room||!payload.id)return;
+    // HELLO también funciona como reintento de entrada. Así el anfitrión
+    // recupera jugadores aunque el primer JOIN se haya perdido.
+    const requested=String(payload.name||"").trim().slice(0,24);
+    const playerName=requested||"Jugador";
+    if(!players[payload.id]){
+      players[payload.id]={name:playerName};
+      scores[payload.id]=scores[payload.id]??0;
+    }
+    await syncState();
   });
 
   channel.on("broadcast",{event:"JOIN"},async({payload})=>{
@@ -359,10 +369,16 @@ async function setupRealtime(){
     catch(e){console.warn("ICE",e)}
   });
 
-  await channel.subscribe((status,err)=>{
-    txt("conn",status==="SUBSCRIBED"?"Conectado":status==="CHANNEL_ERROR"?"Error de conexión":"Conectando…");
-    if(err)console.warn(err);
+  await new Promise((resolve,reject)=>{
+    channel.subscribe((status,err)=>{
+      txt("conn",status==="SUBSCRIBED"?"Conectado":status==="CHANNEL_ERROR"?"Error de conexión":"Conectando…");
+      if(err)console.warn(err);
+      if(status==="SUBSCRIBED")resolve();
+      else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")reject(err||new Error(status));
+    });
   });
+  })();
+  try{await realtimeReady}catch(e){realtimeReady=null;throw e}
 }
 
 function snapshot(){
@@ -380,10 +396,11 @@ function stopJoinRetry(){
 async function announceJoin(){
   if(!room||!myId||isHost)return;
   await broadcast("JOIN",{room,id:myId,name:me});
-  await broadcast("HELLO",{room});
+  await broadcast("HELLO",{room,id:myId,name:me});
 }
 
 async function createRoom(){
+  await setupRealtime();
   if(!channel)return;
   stopJoinRetry();
   me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
@@ -403,6 +420,7 @@ async function createRoom(){
 }
 
 async function joinRoom(){
+  await setupRealtime();
   if(!channel)return;
   stopJoinRetry();
   me=($("joinName").value.trim()||"Jugador").slice(0,24);
