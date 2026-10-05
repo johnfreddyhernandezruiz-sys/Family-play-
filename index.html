@@ -361,7 +361,9 @@ function pickSituation(){
 function modeForRound(){return round===3||round===7?"imitation":"vote"}
 function pickActorTarget(){
   const all=ids();if(all.length<2)return{actor:all[0],target:all[0]};
-  const actor=all[Math.floor(Math.random()*all.length)];
+  const actorPool=isHost?all.filter(id=>id!==myId):all;
+  const pool=actorPool.length?actorPool:all;
+  const actor=pool[Math.floor(Math.random()*pool.length)];
   const other=all.filter(x=>x!==actor);
   return{actor,target:other[Math.floor(Math.random()*other.length)]};
 }
@@ -454,6 +456,7 @@ async function resolveRound(){
   renderResolution();await syncState();
 }
 function renderResolution(){
+  renderPlayers();
   if(currentMode==="imitation"){
     txt("result","🎭 Era "+pname(actorId)+" · ¡si engañaste a la mayoría ganaste +3!");
   }else{
