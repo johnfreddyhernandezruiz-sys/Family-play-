@@ -196,74 +196,362 @@ const situations = [
   { category: `👑 Gran final`, text: `Última acusación: ¿quién tiene más probabilidades de ser culpable de algo y aun así convencer a todos de que fue otra persona?` }
 ];
 
+
 let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],scores={};
-let currentGame=null,currentMode="vote",actorId=null,targetId=null,localStream=null,peer=null,votes={};
-const $=id=>document.getElementById(id),show=id=>$(id).classList.remove("hidden"),hide=id=>$(id).classList.add("hidden");
-function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
-async function setupRealtime(){
- if(channel)return; channel=sb.channel("family-play-v9");
- channel.on("broadcast",{event:"HELLO"},async({payload})=>{if(isHost&&payload?.room===room)await sync()});
- channel.on("broadcast",{event:"SYNC"},({payload})=>{if(payload?.room!==room)return;players=payload.players||players;scores=payload.scores||scores;renderPlayers();if(payload.game)renderGame(payload.game)});
- channel.on("broadcast",{event:"JOIN"},async({payload})=>{if(isHost&&payload?.room===room){players[payload.id]={name:payload.name};scores[payload.id]=0;await sync()}});
- channel.on("broadcast",{event:"START"},({payload})=>{if(payload?.room===room){round=payload.round;used=payload.used||[];renderGame(payload.game);if(payload.mode==="imitation")renderImitation(payload.mission,payload.actorId,payload.targetId)}});
- channel.on("broadcast",{event:"NEXT"},({payload})=>{if(payload?.room===room){round=payload.round;used=payload.used||[];renderGame(payload.game);if(payload.mode==="imitation")renderImitation(payload.mission,payload.actorId,payload.targetId)}});
- channel.on("broadcast",{event:"VOTE"},async({payload})=>{
-   if(!isHost||payload?.room!==room)return;
-   votes[payload.voter]=payload.target;
-   const total=Object.keys(players).length;
-   if(Object.keys(votes).length>=total){
-     if(currentMode==="imitation"){
-       const correct=actorId;
-       Object.entries(votes).forEach(([voter,target])=>{if(target===correct)scores[voter]=(scores[voter]||0)+2});
-       const wrong=Object.entries(votes).filter(([,target])=>target!==correct).length;
-       if(wrong>=Math.ceil(total/2))scores[actorId]=(scores[actorId]||0)+3;
-     }else{
-       const counts={};Object.values(votes).forEach(t=>counts[t]=(counts[t]||0)+1);
-       const max=Math.max(...Object.values(counts));
-       Object.entries(votes).forEach(([voter,target])=>{if(counts[target]===max)scores[voter]=(scores[voter]||0)+1});
-     }
-     await channel.send({type:"broadcast",event:"SYNC",payload:{room,players,scores,round,used,game:currentGame}});
-   }else await syncVotes();
- });
- channel.on("broadcast",{event:"IMITATION_OFFER"},async({payload})=>{if(!isHost||payload?.room!==room)return;await ensurePeer(true);await peer.setRemoteDescription(payload.offer);const ans=await peer.createAnswer();await peer.setLocalDescription(ans);await channel.send({type:"broadcast",event:"IMITATION_ANSWER",payload:{room,answer:ans}})});
- channel.on("broadcast",{event:"IMITATION_ANSWER"},async({payload})=>{if(payload?.room!==room||!peer)return;await peer.setRemoteDescription(payload.answer)});
- channel.on("broadcast",{event:"IMITATION_ICE"},async({payload})=>{if(payload?.room!==room||!peer||!payload.candidate)return;try{await peer.addIceCandidate(payload.candidate)}catch(e){}});
- channel.on("broadcast",{event:"IMITATION_READY"},({payload})=>{if(payload?.room===room){show("hostImitation");if($("hostImitationText"))$("hostImitationText").textContent="🎬 ¡Miren la imitación!"}});
- await channel.subscribe(s=>{if(s==="SUBSCRIBED")$("conn").textContent="Conectado"});
+let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
+let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
+
+const $=id=>document.getElementById(id);
+const show=id=>$(id)?.classList.remove("hidden");
+const hide=id=>$(id)?.classList.add("hidden");
+const txt=(id,v)=>{if($(id))$(id).textContent=v};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+const ids=()=>Object.keys(players);
+const pname=id=>players[id]?.name||"Jugador";
+const count=()=>ids().length;
+
+async function broadcast(event,payload={}){
+  if(!channel)return;
+  try{await channel.send({type:"broadcast",event,payload})}catch(e){console.warn(event,e)}
 }
-function newCode(){return Math.random().toString(36).slice(2,8).toUpperCase()}
-function pickSituation(){let a=situations.map((_,i)=>i).filter(i=>!used.includes(i));if(!a.length){used=[];a=situations.map((_,i)=>i)}const block=a.filter(i=>Math.floor(i/10)===Math.min(round-1,9));const pool=block.length?block:a;const idx=pool[Math.floor(Math.random()*pool.length)];used.push(idx);return situations[idx]}
+
+async function setupRealtime(){
+  if(channel)return;
+  channel=sb.channel("family-play-v10",{config:{broadcast:{ack:true}}});
+
+  channel.on("broadcast",{event:"HELLO"},({payload})=>{
+    if(isHost&&payload?.room===room)syncState();
+  });
+
+  channel.on("broadcast",{event:"JOIN"},async({payload})=>{
+    if(!isHost||payload?.room!==room||!payload.id)return;
+    players[payload.id]={name:String(payload.name||"Jugador").slice(0,24)};
+    scores[payload.id]=scores[payload.id]??0;
+    await syncState();
+  });
+
+  channel.on("broadcast",{event:"STATE"},({payload})=>{
+    if(!payload||payload.room!==room)return;
+    players=payload.players||players;scores=payload.scores||scores;
+    round=payload.round||round;used=payload.used||used;
+    if(payload.phase)phase=payload.phase;
+    if(payload.game){
+      currentGame=payload.game;currentMode=payload.mode||"vote";
+      actorId=payload.actorId||null;targetId=payload.targetId||null;
+      mission=payload.mission||"";votes=payload.votes||{};
+      voted=!!votes[myId];imitationDone=!!payload.imitationDone;
+      renderGame();
+    }
+    if(payload.phase==="finished")renderFinal();
+    renderPlayers();
+    if(isHost)updateLobbyControls();
+  });
+
+  channel.on("broadcast",{event:"VOTE"},async({payload})=>{
+    if(!isHost||payload?.room!==room||payload.round!==round||phase!=="voting")return;
+    if(!players[payload.voter]||!players[payload.target]||votes[payload.voter])return;
+    votes[payload.voter]=payload.target;
+    await syncState();
+    if(Object.keys(votes).length>=count())resolveRound();
+  });
+
+  channel.on("broadcast",{event:"IMITATION_DONE"},async({payload})=>{
+    if(payload?.room!==room||payload.round!==round)return;
+    imitationDone=true;
+    if(isHost)await syncState();
+    renderImitationVotes();
+    txt("result","🎬 ¡Imitación terminada! Ahora voten.");
+  });
+
+  channel.on("broadcast",{event:"RTC_OFFER"},async({payload})=>{
+    if(!isHost||payload?.room!==room||payload.to!=="HOST"||payload.actorId!==actorId)return;
+    resetPeer();
+    peer=new RTCPeerConnection({iceServers:[
+      {urls:"stun:stun.l.google.com:19302"},
+      {urls:"stun:stun1.l.google.com:19302"}
+    ]});
+    peer.onicecandidate=e=>{
+      if(e.candidate)broadcast("RTC_ICE",{room,to:actorId,candidate:e.candidate});
+    };
+    peer.ontrack=e=>{
+      if(e.streams[0]){
+        $("remoteVideo").srcObject=e.streams[0];
+        show("remoteVideo");show("hostImitation");
+        txt("hostImitationText","🎬 ¡EN VIVO! Todos miran la imitación.");
+      }
+    };
+    try{
+      await peer.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      const answer=await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+      await broadcast("RTC_ANSWER",{room,to:actorId,answer:peer.localDescription});
+    }catch(e){console.error("WebRTC",e);txt("hostImitationText","No se pudo conectar el video.");}
+  });
+
+  channel.on("broadcast",{event:"RTC_ANSWER"},async({payload})=>{
+    if(payload?.room!==room||payload.to!==myId||!peer)return;
+    try{await peer.setRemoteDescription(new RTCSessionDescription(payload.answer))}catch(e){console.warn(e)}
+  });
+
+  channel.on("broadcast",{event:"RTC_ICE"},async({payload})=>{
+    if(payload?.room!==room||payload.to!==myId||!payload.candidate||!peer)return;
+    try{await peer.addIceCandidate(new RTCIceCandidate(payload.candidate))}catch(e){console.warn("ICE",e)}
+  });
+
+  await channel.subscribe((status,err)=>{
+    txt("conn",status==="SUBSCRIBED"?"Conectado":status==="CHANNEL_ERROR"?"Error de conexión":"Conectando…");
+    if(err)console.warn(err);
+  });
+}
+
+function snapshot(){
+  return {room,players,scores,round,used,game:currentGame,mode:currentMode,
+    actorId,targetId,mission,phase,votes,imitationDone};
+}
+async function syncState(){await broadcast("STATE",snapshot())}
+
+function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
+
+async function createRoom(){
+  if(!channel)return;
+  me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
+  myId="host-"+crypto.randomUUID();room=Math.random().toString(36).slice(2,8).toUpperCase();
+  isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
+  hide("hostControls");hide("joinControls");show("roomInfo");
+  txt("roomCode",room);txt("wait","Comparte el código con tu familia.");updateLobbyControls();
+  await syncState();
+}
+
+async function joinRoom(){
+  if(!channel)return;
+  me=($("joinName").value.trim()||"Jugador").slice(0,24);
+  room=$("roomInput").value.trim().toUpperCase();
+  if(!/^[A-Z0-9]{4,8}$/.test(room)){txt("err","Escribe un código de sala válido.");return}
+  myId="player-"+crypto.randomUUID();isHost=false;
+  hide("hostControls");hide("joinControls");show("roomInfo");txt("roomCode",room);
+  txt("wait","Buscando al anfitrión…");
+  await broadcast("JOIN",{room,id:myId,name:me});
+  await broadcast("HELLO",{room});
+}
+
+function updateLobbyControls(){
+  if(!isHost)return;
+  txt("wait",count()<2?"Necesitan al menos 2 jugadores.":"¡Listos! · "+count()+" jugadores");
+  if(count()>=2)show("startBtn");else hide("startBtn");
+}
+
+function renderPlayers(){
+  if($("players"))$("players").innerHTML=ids().map(id=>
+    '<div class="player"><div class="avatar">🎭</div><b>'+esc(pname(id))+'</b>'+(id===myId?' <small>(tú)</small>':'')+'</div>'
+  ).join("");
+  if($("playersGame"))$("playersGame").innerHTML=ids().map(id=>{
+    const disabled=voted||phase!=="voting"||id===myId;
+    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="vote(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
+  }).join("");
+}
+
+function pickSituation(){
+  let a=situations.map((_,i)=>i).filter(i=>!used.includes(i));
+  if(!a.length){used=[];a=situations.map((_,i)=>i)}
+  const preferred=a.filter(i=>Math.floor(i/10)===Math.min(round-1,9));
+  const pool=preferred.length?preferred:a;
+  const i=pool[Math.floor(Math.random()*pool.length)];
+  used.push(i);return situations[i];
+}
 function modeForRound(){return round===3||round===7?"imitation":"vote"}
-function pickActorTarget(){const ids=Object.keys(players);const nonHost=ids.filter(id=>id!=="host");const actorPool=nonHost.length?nonHost:ids;const actor=actorPool[Math.floor(Math.random()*actorPool.length)];const targets=ids.filter(id=>id!==actor);const target=targets[Math.floor(Math.random()*targets.length)]||actor;return {actor,target}}
+function pickActorTarget(){
+  const all=ids();if(all.length<2)return{actor:all[0],target:all[0]};
+  const actorPool=isHost?all.filter(id=>id!==myId):all;
+  const pool=actorPool.length?actorPool:all;
+  const actor=pool[Math.floor(Math.random()*pool.length)];
+  const other=all.filter(x=>x!==actor);
+  return{actor,target:other[Math.floor(Math.random()*other.length)]};
+}
 const missionTemplates=[
- 'Imita a {target} cuando descubre que alguien se comió algo que había guardado.',
- 'Imita a {target} cuando le dicen: “Tenemos que hablar”.',
- 'Imita a {target} intentando explicar por qué llegó tarde.',
- 'Imita a {target} cuando el internet se cae justo en el peor momento.',
- 'Imita a {target} intentando convencer a todos de una idea completamente absurda.',
- 'Imita a {target} cuando recibe una noticia inesperadamente buena.',
- 'Imita a {target} cuando descubre que tiene que pagar algo que no esperaba.',
- 'Imita a {target} intentando ocultar que fue quien hizo una pequeña travesura.'
+ "Imita a {target} cuando descubre que alguien se comió algo que había guardado.",
+ "Imita a {target} cuando le dicen: “Tenemos que hablar”.",
+ "Imita a {target} intentando explicar por qué llegó tarde.",
+ "Imita a {target} cuando el internet se cae justo en el peor momento.",
+ "Imita a {target} intentando convencer a todos de una idea completamente absurda.",
+ "Imita a {target} cuando recibe una noticia inesperadamente buena.",
+ "Imita a {target} cuando descubre que tiene que pagar algo que no esperaba.",
+ "Imita a {target} intentando ocultar que fue quien hizo una pequeña travesura."
 ];
-async function createRoom(){me=$("hostName").value.trim()||"Anfitrión";myId="host";room=newCode();isHost=true;players={host:{name:me}};scores={host:0};hide("hostControls");hide("joinControls");show("roomInfo");$("roomCode").textContent=room;show("startBtn");renderPlayers();await sync()}
-async function joinRoom(){me=$("joinName").value.trim()||"Jugador";myId=crypto.randomUUID();room=$("roomInput").value.trim().toUpperCase();if(!room)return $("err").textContent="Escribe el código de la sala.";isHost=false;hide("hostControls");hide("joinControls");show("roomInfo");$("roomCode").textContent=room;await channel.send({type:"broadcast",event:"JOIN",payload:{room,name:me,id:myId}});await channel.send({type:"broadcast",event:"HELLO",payload:{room}})}
-async function sync(){await channel.send({type:"broadcast",event:"SYNC",payload:{room,players,scores,round,used,game:null}})}
-async function syncVotes(){await channel.send({type:"broadcast",event:"SYNC",payload:{room,players,scores,round,used,game:currentGame}})}
-function renderPlayers(){$("players").innerHTML=Object.values(players).map(p=>`<div class="player"><div class="avatar">🎭</div><b>${p.name}</b></div>`).join("");$("playersGame").innerHTML=Object.entries(players).map(([id,p])=>`<button class="vote" onclick="vote('${id}')">🎭 ${p.name}</button>`).join("")}
-async function startGame(){if(!isHost)return;round=1;used=[];scores=Object.fromEntries(Object.keys(players).map(id=>[id,0]));await beginRound("START")}
-async function nextRound(){if(!isHost)return;if(round>=10){finishGame();return}round++;await beginRound("NEXT")}
-async function beginRound(eventName){const game=pickSituation();currentGame=game;currentMode=modeForRound();votes={};let payload={room,round,used,game,mode:currentMode};if(currentMode==="imitation"){const x=pickActorTarget();actorId=x.actor;targetId=x.target;const targetName=players[targetId]?.name||"un familiar";const mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace('{target}',targetName);payload.actorId=actorId;payload.targetId=targetId;payload.mission=mission}renderGame(game);await channel.send({type:"broadcast",event:eventName,payload})}
-function renderGame(game){hide("lobby");show("game");$("roundNo").textContent=round;$("mode").textContent=currentMode==="imitation"?"🎭 Misión secreta":"🗳️ Votación";$("category").textContent=game.category;$("question").textContent=game.text;$("result").textContent="";$("hostNext").classList.toggle("hidden",!isHost);if(currentMode==="imitation")renderImitation();else{hide("imitationPanel");show("normalActions")}renderPlayers()}
-async function vote(target){if(!players[target])return;$("result").innerHTML=`🗳️ Votaste por <b>${players[target].name}</b>`;await channel.send({type:"broadcast",event:"VOTE",payload:{room,voter:myId,target}});}
-function renderImitation(mission,actor,target){hide("normalActions");show("imitationPanel");const a=actor||actorId,t=target||targetId;actorId=a;targetId=t;const mine=a===myId;$("missionText").textContent=mission||`🔒 Misión secreta para ${players[a]?.name||"alguien"}`;if(!mine){$("missionText").textContent="🎭 Alguien recibió una misión secreta. Prepárate para descubrirlo.";hide("cameraBtn");hide("recordBtn");hide("stopBtn")}else{show("cameraBtn");hide("recordBtn");hide("stopBtn")}if(isHost)show("hostImitation")}
-async function startCamera(){try{localStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:true});$("selfPreview").srcObject=localStream;show("selfPreview");hide("cameraBtn");show("recordBtn")}catch(e){$("result").textContent="No se pudo activar la cámara. Revisa el permiso del navegador."}}
-async function ensurePeer(hostSide){if(peer)return;peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});peer.onicecandidate=e=>{if(e.candidate)channel.send({type:"broadcast",event:"IMITATION_ICE",payload:{room,candidate:e.candidate}})};if(hostSide)peer.ontrack=e=>{if(e.streams[0]){$("remoteVideo").srcObject=e.streams[0];show("hostImitation")}}}
-async function startImitationStream(){if(!localStream)return;await ensurePeer(false);localStream.getTracks().forEach(t=>peer.addTrack(t,localStream));const offer=await peer.createOffer();await peer.setLocalDescription(offer);await channel.send({type:"broadcast",event:"IMITATION_OFFER",payload:{room,offer}});await channel.send({type:"broadcast",event:"IMITATION_READY",payload:{room}});hide("recordBtn");show("stopBtn");let t=20;$("timer").textContent=t;const timer=setInterval(()=>{t--;$("timer").textContent=t;if(t<=0){clearInterval(timer);stopImitationStream()}},1000)}
-function stopImitationStream(){if(localStream)localStream.getTracks().forEach(t=>t.stop());hide("stopBtn");$("timer").textContent="🎬 ¡LISTO!";if(isHost)show("imitationVotes");renderImitationVotes()}
-function renderImitationVotes(){$("imitationVotes").innerHTML=Object.entries(players).map(([id,p])=>`<button class="vote" onclick="voteImitation('${id}')">🎭 ${p.name}</button>`).join("")}
-async function voteImitation(target){$("result").innerHTML=`🗳️ Creo que es <b>${players[target]?.name||"?"}</b>`;await channel.send({type:"broadcast",event:"VOTE",payload:{room,voter:myId,target}})}
-function finishGame(){hide("hostNext");$("mode").textContent="🏆 FINAL";$("category").textContent="La familia ha hablado";const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);$("question").innerHTML=`<div class="bigResult">🎉 ¡PARTIDA TERMINADA!<br><span style="font-size:.55em">¿QUIÉN FUE EL MÁS SOSPECHOSO?</span></div>`;$("normalActions").innerHTML=`<div class="scoreboard">${ranked.map((x,i)=>`<div class="scoreRow"><b>${i===0?'👑':i===1?'🥈':i===2?'🥉':'🎭'} ${players[x[0]]?.name||'Jugador'}</b><span>${x[1]} pts</span></div>`).join('')}</div>`;hide("imitationPanel");$("result").innerHTML=`<div class="bigResult pulse">🎭 FAMILY PLAY<br>🔥 ¡REVANCHA!</div>`}
-setupRealtime().catch(e=>$("err").textContent="Error de conexión: "+e.message);
+
+async function startGame(){
+  if(!isHost)return;
+  if(count()<2){txt("err","Necesitan al menos 2 jugadores.");return}
+  round=1;used=[];scores=Object.fromEntries(ids().map(id=>[id,0]));
+  await beginRound();
+}
+async function beginRound(){
+  stopLocalMedia();resetPeer();
+  currentGame=pickSituation();currentMode=modeForRound();
+  votes={};voted=false;imitationDone=false;actorId=null;targetId=null;mission="";
+  if(currentMode==="imitation"){
+    const x=pickActorTarget();actorId=x.actor;targetId=x.target;
+    mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace("{target}",pname(targetId));
+  }
+  phase="voting";renderGame();await syncState();
+}
+
+function renderGame(){
+  hide("lobby");show("game");
+  txt("roundNo",round);txt("mode",currentMode==="imitation"?"🎭 MISIÓN SECRETA":"🗳️ VOTACIÓN");
+  txt("category",currentGame?.category||"");txt("question",currentGame?.text||"");txt("result","");
+  if(currentMode==="imitation"){hide("normalActions");show("imitationPanel");renderImitation()}
+  else{show("normalActions");hide("imitationPanel");renderPlayers()}
+  hide("hostNext");
+  if(phase==="resolved"&&isHost)show("hostNext");
+}
+
+function renderImitation(){
+  const mine=actorId===myId;
+  if(mine){
+    txt("missionText",mission);show("cameraBtn");
+    if(localStream){hide("cameraBtn");show("recordBtn")}
+  }else{
+    txt("missionText","🎭 Alguien recibió una misión secreta. Observa bien.");
+    hide("cameraBtn");hide("recordBtn");hide("stopBtn");
+  }
+  if(isHost)show("hostImitation");else hide("hostImitation");
+  renderImitationVotes();
+}
+
+function renderImitationVotes(){
+  const box=$("imitationVotes");if(!box)return;
+  if(!imitationDone||phase!=="voting"){box.innerHTML="";return}
+  box.innerHTML=ids().map(id=>{
+    const disabled=voted||id===myId||phase!=="voting";
+    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="voteImitation(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
+  }).join("");
+  show("imitationVotes");
+}
+
+async function vote(target){
+  if(voted||phase!=="voting"||target===myId||!players[target])return;
+  voted=true;txt("result","🗳️ Votaste por "+pname(target)+" · esperando a los demás…");
+  await broadcast("VOTE",{room,round,voter:myId,target});
+  renderPlayers();renderImitationVotes();
+}
+async function voteImitation(target){await vote(target)}
+
+async function resolveRound(){
+  if(!isHost||phase!=="voting")return;
+  if(currentMode==="imitation"&&!imitationDone)return;
+  phase="resolved";
+  if(currentMode==="imitation"){
+    Object.entries(votes).forEach(([voter,target])=>{
+      if(target===actorId)scores[voter]=(scores[voter]||0)+2;
+    });
+    const wrong=Object.values(votes).filter(x=>x!==actorId).length;
+    if(wrong>=Math.ceil(count()/2))scores[actorId]=(scores[actorId]||0)+3;
+  }else{
+    const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
+    const max=Math.max(...Object.values(tally),0);
+    Object.entries(votes).forEach(([voter,target])=>{
+      if(tally[target]===max)scores[voter]=(scores[voter]||0)+1;
+    });
+  }
+  renderResolution();await syncState();
+}
+function renderResolution(){
+  renderPlayers();
+  if(currentMode==="imitation"){
+    txt("result","🎭 Era "+pname(actorId)+" · ¡si engañaste a la mayoría ganaste +3!");
+  }else{
+    const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
+    const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+    txt("result",top?"🏆 Más votado: "+pname(top[0]):"Votación terminada.");
+  }
+  if(isHost)show("hostNext");
+}
+
+async function nextRound(){
+  if(!isHost||phase!=="resolved")return;
+  if(round>=10){finishGame();return}
+  round++;await beginRound();
+}
+
+function finishGame(){
+  stopLocalMedia();resetPeer();phase="finished";
+  renderFinal();syncState();
+}
+function renderFinal(){
+  hide("hostNext");hide("imitationPanel");show("normalActions");
+  const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const winner=ranked[0]?.[0];
+  txt("mode","🏆 GRAN FINAL");txt("category","La familia ha hablado");
+  $("question").innerHTML='<div class="bigResult pulse">🎉 ¡PARTIDA TERMINADA!<br><span style="font-size:.55em">👑 '+esc(pname(winner))+' GANA</span></div>';
+  $("normalActions").innerHTML='<div class="scoreboard">'+ranked.map((x,i)=>
+    '<div class="scoreRow"><b>'+(['👑','🥈','🥉'][i]||'🎭')+' '+esc(pname(x[0]))+'</b><span>'+x[1]+' pts</span></div>'
+  ).join("")+'</div>';
+  txt("result","🔥 ¡Qué familia tan peligrosa! · ¿Revancha?");
+}
+
+async function startCamera(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("camera");
+    stopLocalMedia();
+    localStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"user",width:{ideal:720},height:{ideal:1280}},audio:true
+    });
+    $("selfPreview").srcObject=localStream;show("selfPreview");hide("cameraBtn");show("recordBtn");
+    txt("result","📹 Cámara lista. ¡Prepárate!");
+  }catch(e){txt("result","No se pudo activar la cámara. Revisa los permisos del navegador.")}
+}
+
+function startTimer(){
+  if(timer)clearInterval(timer);let n=20;txt("timer",n);
+  timer=setInterval(()=>{n--;txt("timer",n);if(n<=0)stopImitationStream()},1000);
+}
+function resetPeer(){
+  if(peer){try{peer.close()}catch(e){}}
+  peer=null;
+}
+function stopLocalMedia(){
+  if(timer){clearInterval(timer);timer=null}
+  if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
+  if($("selfPreview")){$("selfPreview").srcObject=null;hide("selfPreview")}
+}
+
+async function startImitationStream(){
+  if(!localStream||actorId!==myId)return;
+  resetPeer();
+  peer=new RTCPeerConnection({iceServers:[
+    {urls:"stun:stun.l.google.com:19302"},
+    {urls:"stun:stun1.l.google.com:19302"}
+  ]});
+  peer.onicecandidate=e=>{
+    if(e.candidate)broadcast("RTC_ICE",{room,to:"HOST",candidate:e.candidate});
+  };
+  localStream.getTracks().forEach(t=>peer.addTrack(t,localStream));
+  try{
+    const offer=await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    await broadcast("RTC_OFFER",{room,to:"HOST",actorId,offer:peer.localDescription});
+    hide("recordBtn");show("stopBtn");startTimer();
+    txt("result","🎬 ¡ESTÁS EN VIVO!");
+  }catch(e){console.error(e);txt("result","No se pudo iniciar el video.")}
+}
+
+function stopImitationStream(){
+  if(timer){clearInterval(timer);timer=null}
+  if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
+  hide("selfPreview");hide("stopBtn");txt("timer","🎬 ¡LISTO!");
+  imitationDone=true;
+  broadcast("IMITATION_DONE",{room,round});
+  renderImitationVotes();
+  txt("result","🎬 ¡Terminaste! Ahora voten.");
+}
+
+window.showLobby=showLobby;window.createRoom=createRoom;window.joinRoom=joinRoom;
+window.startGame=startGame;window.nextRound=nextRound;window.vote=vote;
+window.voteImitation=voteImitation;window.startCamera=startCamera;
+window.startImitationStream=startImitationStream;window.stopImitationStream=stopImitationStream;
+
+setupRealtime().catch(e=>{console.error(e);txt("err","Error de conexión: "+e.message)});
+
 </script>
 </body>
 </html>
