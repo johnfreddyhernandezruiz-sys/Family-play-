@@ -387,10 +387,14 @@ async function createRoom(){
   if(!channel)return;
   stopJoinRetry();
   me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
-  myId="host-"+crypto.randomUUID();room=Math.random().toString(36).slice(2,8).toUpperCase();
+  myId="host-"+crypto.randomUUID();
+  // Un solo código por partida: los reintentos no generan una sala nueva.
+  if(!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
   isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
   hide("hostControls");hide("joinControls");show("roomInfo");
-  txt("roomCode",room);txt("wait","Comparte el código con tu familia.");updateLobbyControls();
+  txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");updateLobbyControls();
+  const createBtn=document.querySelector('#hostControls button');
+  if(createBtn)createBtn.disabled=true;
   await syncState();
   if(lobbyHeartbeat)clearInterval(lobbyHeartbeat);
   // Broadcast no es un almacén de estado: mientras esperamos jugadores, repetimos
@@ -565,8 +569,13 @@ async function nextRound(){
 }
 
 function finishGame(){
-  stopLocalMedia();resetPeer();phase="finished";
+  stopLocalMedia();resetPeer();
+  if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
+  stopJoinRetry();
+  phase="finished";
   renderFinal();syncState();
+  // El código actual pertenece a esta partida. La próxima partida tendrá uno nuevo.
+  room=null;
 }
 function renderFinal(){
   hide("hostNext");hide("imitationPanel");show("normalActions");
