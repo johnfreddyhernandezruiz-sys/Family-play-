@@ -87,7 +87,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
   <div class="tiny">V10 · 100 situaciones · 10 rondas · 🎭 una de video + 🎙️ una de audio</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 VERSIÓN CORREGIDA · Lobby multiplayer · 2a63eec</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 VERSIÓN CORREGIDA · Votación + aleatoriedad · lobby 2a63eec</div>
 </div>
 
 <script>
@@ -200,6 +200,7 @@ const situations = [
 
 
 let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],scores={};
+let lastFirstSituation=null;
 let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
 let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
 let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
@@ -496,13 +497,28 @@ function renderPlayers(){
   }).join("");
 }
 
+function randomIndex(max){
+  if(max<=1)return 0;
+  if(window.crypto?.getRandomValues){
+    const bytes=new Uint32Array(1);
+    window.crypto.getRandomValues(bytes);
+    return Math.floor((bytes[0]/4294967296)*max);
+  }
+  return Math.floor(Math.random()*max);
+}
 function pickSituation(){
   let a=situations.map((_,i)=>i).filter(i=>!used.includes(i));
   if(!a.length){used=[];a=situations.map((_,i)=>i)}
-  const preferred=a.filter(i=>Math.floor(i/10)===Math.min(round-1,9));
-  const pool=preferred.length?preferred:a;
-  const i=pool[Math.floor(Math.random()*pool.length)];
-  used.push(i);return situations[i];
+  // Las situaciones se eligen entre las 100 disponibles, no por bloques.
+  // Además evitamos repetir la pregunta inicial de la partida anterior.
+  if(round===1&&lastFirstSituation!==null&&a.length>1){
+    const filtered=a.filter(i=>i!==lastFirstSituation);
+    if(filtered.length)a=filtered;
+  }
+  const i=a[randomIndex(a.length)];
+  used.push(i);
+  if(round===1)lastFirstSituation=i;
+  return situations[i];
 }
 function modeForRound(){return round===3?"video":round===7?"audio":"vote"}
 function pickActorTarget(){
@@ -529,6 +545,9 @@ async function startGame(){
   if(count()<2){txt("err","Necesitan al menos 2 jugadores.");return}
   if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
   round=1;used=[];scores=Object.fromEntries(ids().map(id=>[id,0]));
+  // Cada nueva partida vuelve a tener 10 situaciones únicas y una pregunta
+  // inicial diferente a la de la partida anterior cuando sea posible.
+  used=[];
   await beginRound();
 }
 async function beginRound(){
@@ -588,9 +607,18 @@ function renderImitationVotes(){
 
 async function vote(target){
   if(voted||phase!=="voting"||target===myId||!players[target])return;
-  voted=true;txt("result","🗳️ Votaste por "+pname(target)+" · esperando a los demás…");
+  voted=true;
+  txt("result","🗳️ Votaste por "+pname(target)+" · esperando a los demás…");
+  // Broadcast no devuelve el mensaje al emisor por defecto. Por eso el host
+  // debe registrar su propio voto localmente; de lo contrario, con 2 jugadores
+  // la partida queda esperando eternamente el voto del anfitrión.
+  if(isHost)votes[myId]=target;
   await broadcast("VOTE",{room,round,voter:myId,target});
   renderPlayers();renderImitationVotes();
+  if(isHost){
+    if(Object.keys(votes).length>=count())await resolveRound();
+    else await syncState();
+  }
 }
 async function voteImitation(target){await vote(target)}
 
