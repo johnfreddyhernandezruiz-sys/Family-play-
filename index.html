@@ -70,6 +70,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
         <div id="timer" style="font-size:52px;font-weight:900;text-align:center">20</div>
         <div class="row">
           <button id="cameraBtn" onclick="startCamera()">🎥 Activar cámara</button>
+          <button id="audioBtn" class="hidden" onclick="startAudio()">🎙️ Activar micrófono</button>
           <button id="recordBtn" class="hidden" onclick="startImitationStream()">🎬 Empezar</button>
           <button id="stopBtn" class="hidden secondary" onclick="stopImitationStream()">⏹️ Terminar</button>
         </div>
@@ -85,7 +86,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V9 · 100 situaciones · 10 rondas · 🎭 misiones secretas</div>
+  <div class="tiny">V10 · 100 situaciones · 10 rondas · 🎭 una de video + 🎙️ una de audio</div>
 </div>
 
 <script>
@@ -293,10 +294,16 @@ async function setupRealtime(){
         if(e.candidate)broadcast("RTC_ICE",{room,to:id,from:myId,candidate:e.candidate});
       };
       pc.ontrack=e=>{
-        if(e.streams[0]){
+        if(!e.streams[0])return;
+        show("hostImitation");
+        if(currentMode==="audio"){
+          const audio=$("remoteAudio");
+          audio.srcObject=e.streams[0];audio.autoplay=true;audio.playsInline=true;
+          audio.play().catch(()=>{});
+          txt("hostImitationText","🎙️ ¡EN VIVO! Escucha la imitación.");
+        }else{
           const video=$("remoteVideo");
           video.srcObject=e.streams[0];video.autoplay=true;video.playsInline=true;
-          show("remoteVideo");show("hostImitation");
           video.play().catch(()=>{
             video.muted=true;
             video.play().catch(()=>{});
@@ -401,7 +408,7 @@ function pickSituation(){
   const i=pool[Math.floor(Math.random()*pool.length)];
   used.push(i);return situations[i];
 }
-function modeForRound(){return round===3||round===7?"imitation":"vote"}
+function modeForRound(){return round===3?"video":round===7?"audio":"vote"}
 function pickActorTarget(){
   const all=ids();if(all.length<2)return{actor:all[0],target:all[0]};
   const actorPool=isHost?all.filter(id=>id!==myId):all;
@@ -431,7 +438,7 @@ async function beginRound(){
   stopLocalMedia();resetPeer();
   currentGame=pickSituation();currentMode=modeForRound();
   votes={};voted=false;imitationDone=false;actorId=null;targetId=null;mission="";
-  if(currentMode==="imitation"){
+  if(currentMode!=="vote"){
     const x=pickActorTarget();actorId=x.actor;targetId=x.target;
     mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace("{target}",pname(targetId));
   }
@@ -440,9 +447,9 @@ async function beginRound(){
 
 function renderGame(){
   hide("lobby");show("game");
-  txt("roundNo",round);txt("mode",currentMode==="imitation"?"🎭 MISIÓN SECRETA":"🗳️ VOTACIÓN");
+  txt("roundNo",round);txt("mode",currentMode==="video"?"🎥 IMITACIÓN EN VIDEO":currentMode==="audio"?"🎙️ IMITACIÓN DE AUDIO":"🗳️ VOTACIÓN");
   txt("category",currentGame?.category||"");txt("question",currentGame?.text||"");txt("result","");
-  if(currentMode==="imitation"){hide("normalActions");show("imitationPanel");renderImitation()}
+  if(currentMode==="video"||currentMode==="audio"){hide("normalActions");show("imitationPanel");renderImitation()}
   else{show("normalActions");hide("imitationPanel");renderPlayers()}
   hide("hostNext");
   if(phase==="resolved"&&isHost)show("hostNext");
@@ -450,14 +457,23 @@ function renderGame(){
 
 function renderImitation(){
   const mine=actorId===myId;
+  const videoMode=currentMode==="video";
+  txt("hostImitationText",videoMode?"Cuando termine, voten quién estaba detrás de la imitación.":"Escucha con atención. Cuando termine, voten quién estaba detrás de la imitación.");
   if(mine){
-    txt("missionText",mission);show("cameraBtn");
-    if(localStream){hide("cameraBtn");show("recordBtn")}
+    txt("missionText",mission);
+    if(videoMode){
+      show("cameraBtn");hide("audioBtn");
+      if(localStream){hide("cameraBtn");show("recordBtn")}
+    }else{
+      hide("cameraBtn");show("audioBtn");
+      if(localStream){hide("audioBtn");show("recordBtn")}
+    }
   }else{
-    txt("missionText","🎭 Alguien recibió una misión secreta. Observa bien.");
-    hide("cameraBtn");hide("recordBtn");hide("stopBtn");
+    txt("missionText",videoMode?"🎭 Alguien recibió una misión secreta. Observa bien.":"🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
+    hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
   }
   if(isHost)show("hostImitation");else hide("hostImitation");
+  if(videoMode){show("remoteVideo");hide("remoteAudio")}else{hide("remoteVideo");show("remoteAudio")}
   renderImitationVotes();
 }
 
@@ -481,9 +497,9 @@ async function voteImitation(target){await vote(target)}
 
 async function resolveRound(){
   if(!isHost||phase!=="voting")return;
-  if(currentMode==="imitation"&&!imitationDone)return;
+  if(currentMode!=="vote"&&!imitationDone)return;
   phase="resolved";
-  if(currentMode==="imitation"){
+  if(currentMode!=="vote"){
     Object.entries(votes).forEach(([voter,target])=>{
       if(target===actorId)scores[voter]=(scores[voter]||0)+2;
     });
@@ -500,8 +516,8 @@ async function resolveRound(){
 }
 function renderResolution(){
   renderPlayers();
-  if(currentMode==="imitation"){
-    txt("result","🎭 Era "+pname(actorId)+" · ¡si engañaste a la mayoría ganaste +3!");
+  if(currentMode!=="vote"){
+    txt("result",(currentMode==="video"?"🎥":"🎙️")+" Era "+pname(actorId)+" · ¡si engañaste a la mayoría ganaste +3!");
   }else{
     const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
     const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
@@ -537,11 +553,23 @@ async function startCamera(){
     if(!navigator.mediaDevices?.getUserMedia)throw new Error("camera");
     stopLocalMedia();
     localStream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:"user",width:{ideal:720},height:{ideal:1280}},audio:true
+      video:{facingMode:"user",width:{ideal:540},height:{ideal:960},frameRate:{ideal:24,max:24}},audio:true
     });
     $("selfPreview").srcObject=localStream;show("selfPreview");hide("cameraBtn");show("recordBtn");
     txt("result","📹 Cámara lista. ¡Prepárate!");
   }catch(e){txt("result","No se pudo activar la cámara. Revisa los permisos del navegador.")}
+}
+
+async function startAudio(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("microphone");
+    stopLocalMedia();
+    localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    hide("audioBtn");show("recordBtn");
+    txt("result","🎙️ Micrófono listo. ¡Prepárate!");
+  }catch(e){
+    txt("result","No se pudo activar el micrófono. Revisa los permisos del navegador.");
+  }
 }
 
 function startTimer(){
@@ -632,7 +660,7 @@ function stopImitationStream(){
 
 window.showLobby=showLobby;window.createRoom=createRoom;window.joinRoom=joinRoom;
 window.startGame=startGame;window.nextRound=nextRound;window.vote=vote;
-window.voteImitation=voteImitation;window.startCamera=startCamera;
+window.voteImitation=voteImitation;window.startCamera=startCamera;window.startAudio=startAudio;
 window.startImitationStream=startImitationStream;window.stopImitationStream=stopImitationStream;
 
 setupRealtime().catch(e=>{console.error(e);txt("err","Error de conexión: "+e.message)});
