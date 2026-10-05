@@ -595,6 +595,13 @@ async function startImitationStream(retry=false){
       const pc=new RTCPeerConnection(rtcConfig());
       rtcPeers[target]=pc;
       localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+      pc.getSenders().forEach(sender=>{
+        if(sender.track?.kind==="video"){
+          const p=sender.getParameters();p.encodings=p.encodings?.length?p.encodings:[{}];
+          p.encodings.forEach(enc=>{enc.maxBitrate=650000;enc.maxFramerate=24});
+          sender.setParameters(p).catch(()=>{});
+        }
+      });
       pc.onicecandidate=e=>{
         if(e.candidate)broadcast("RTC_ICE",{room,to:target,from:myId,candidate:e.candidate});
       };
