@@ -281,6 +281,10 @@ async function setupRealtime(){
       players[payload.id]={name:playerName};
       scores[payload.id]=scores[payload.id]??0;
     }
+    // Broadcast no se refleja automáticamente en la pantalla del emisor.
+    // Renderizamos localmente antes de enviar el nuevo estado.
+    renderPlayers();
+    updateLobbyControls();
     await syncState();
   });
 
@@ -296,6 +300,9 @@ async function setupRealtime(){
     }
     players[payload.id]={name:playerName};
     scores[payload.id]=scores[payload.id]??0;
+    // El anfitrión debe verse actualizado inmediatamente en su propia pantalla.
+    renderPlayers();
+    updateLobbyControls();
     await syncState();
   });
 
@@ -442,7 +449,9 @@ async function createRoom(){
   if(!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
   isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
   hide("hostControls");hide("joinControls");show("roomInfo");
-  txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");updateLobbyControls();
+  txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");
+  renderPlayers();
+  updateLobbyControls();
   const createBtn=document.querySelector('#hostControls button');
   if(createBtn)createBtn.disabled=true;
   await channel.track({room,id:myId,name:me,role:"host"});
