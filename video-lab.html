@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Play · Video Lab</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0d0d12;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:900px;margin:auto;padding:18px}h1{margin:0 0 6px;font-size:25px}p{color:#aaa;margin:6px 0 16px}
+.card{background:#171720;border:1px solid #292936;border-radius:16px;padding:16px;margin:12px 0}
+input,button{font:inherit;width:100%;padding:13px;border-radius:11px;margin:5px 0}input{background:#0d0d12;color:#fff;border:1px solid #3a3a48}button{border:0;background:#fff;color:#111;font-weight:700}
+button.alt{background:#272735;color:#fff}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+#meet{display:none;height:68vh;min-height:500px;border-radius:15px;overflow:hidden;background:#000}
+.badge{display:inline-block;padding:5px 9px;border-radius:99px;background:#232331;color:#bbb;font-size:12px}.ok{color:#7dff9d}.warn{color:#ffd36b}
+ol{color:#ccc;line-height:1.7}.small{font-size:12px;color:#777}
+</style>
+</head>
+<body>
+<main>
+<h1>🎭 Family Play · Video Lab</h1>
+<p>Laboratorio independiente para elegir el motor de video. No modifica la partida principal.</p>
+
+<div class="card">
+<span class="badge">PRUEBA MULTIPLATAFORMA</span>
+<h3>1. Datos de la prueba</h3>
+<input id="name" placeholder="Tu nombre">
+<input id="room" value="FamilyPlayLab" placeholder="Código de sala">
+<div class="grid">
+<button onclick="startJitsi()">Probar Jitsi</button>
+<button class="alt" onclick="openMirotalk()">Probar MiroTalk SFU</button>
+</div>
+<div id="status" class="small">Esperando prueba…</div>
+</div>
+
+<div id="meet"></div>
+
+<div class="card">
+<h3>2. Matriz que debemos validar</h3>
+<ol>
+<li>iPhone + Safari ↔ Android + Chrome</li>
+<li>iPhone + Safari ↔ Android + Chrome ↔ Android + Chrome</li>
+<li>6 dispositivos mezclados: iPhone, Android, iPad y PC/Mac</li>
+<li>Redes diferentes: Wi‑Fi ↔ datos móviles</li>
+<li>Cámara frontal, micrófono, orientación vertical</li>
+<li>Un jugador sale y vuelve a entrar</li>
+<li>Finalizar video y regresar a la votación</li>
+</ol>
+<p class="small">La prueba debe hacerse sin instalar una app y sin compartir datos personales.</p>
+</div>
+
+<div class="card">
+<h3>3. Criterio de aprobación</h3>
+<p>🟢 Video estable · 🟢 audio estable · 🟢 6 participantes · 🟢 redes diferentes · 🟢 móvil/PC · 🟢 retorno al juego.</p>
+<p class="warn">Si una tecnología falla cualquiera de los puntos críticos, no la integraremos al juego principal.</p>
+</div>
+</main>
+
+<script src="https://meet.jit.si/external_api.js"></script>
+<script>
+let api=null;
+const $=id=>document.getElementById(id);
+function clean(v,f){return (v||f).trim().replace(/[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ_-]/g,"").slice(0,50)||f}
+function startJitsi(){
+ const name=clean($("name").value,"Jugador");
+ const room=clean($("room").value,"FamilyPlayLab").replace(/ /g,"-");
+ $("meet").style.display="block";
+ $("status").innerHTML='<span class="ok">Jitsi: conectando…</span>';
+ if(api){try{api.dispose()}catch(e){}}
+ api=new JitsiMeetExternalAPI("meet.jit.si",{
+   roomName:room,parentNode:$("meet"),width:"100%",height:"100%",lang:"es",
+   userInfo:{displayName:name},
+   configOverwrite:{prejoinConfig:{enabled:true},disableInviteFunctions:true},
+   interfaceConfigOverwrite:{TOOLBAR_BUTTONS:["microphone","camera","hangup","tileview"],SHOW_JITSI_WATERMARK:false}
+ });
+ api.addListener("videoConferenceJoined",e=>$("status").innerHTML='<span class="ok">Jitsi conectado ✓</span>');
+ api.addListener("participantJoined",e=>$("status").innerHTML='<span class="ok">Jitsi · otro jugador conectado ✓</span>');
+ api.addListener("participantLeft",e=>$("status").textContent="Jitsi · un jugador salió");
+}
+function openMirotalk(){
+ const name=encodeURIComponent(clean($("name").value,"Jugador"));
+ const room=encodeURIComponent(clean($("room").value,"FamilyPlayLab").replace(/ /g,"-"));
+ const url="https://sfu.mirotalk.com/join?room="+room+"&password=0&name="+name+"&audio=1&video=1&screen=0&notify=0";
+ $("status").innerHTML='<span class="ok">Abriendo MiroTalk SFU…</span>';
+ window.open(url,"_blank","noopener");
+}
+</script>
+</body>
+</html>
