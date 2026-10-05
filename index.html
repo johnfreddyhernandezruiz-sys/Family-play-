@@ -240,10 +240,41 @@ async function setupRealtime(){
   await loadTurnCredentials();
   channel=sb.channel("family-play-v10",{config:{broadcast:{ack:true}}});
 
+  // Presence es la capa de descubrimiento de jugadores. Broadcast sigue
+  // llevando el estado del juego, pero Presence evita depender de que un JOIN
+  // llegue justo en el instante correcto.
+  channel.on("presence",{event:"sync"},async()=>{
+    if(!isHost||!room)return;
+    const state=channel.presenceState();
+    const roomPlayers={};
+    Object.values(state).flat().forEach(p=>{
+      if(p?.room===room&&p?.id){
+        roomPlayers[p.id]={name:String(p.name||"Jugador").slice(0,24)};
+      }
+    });
+    if(!roomPlayers[myId])roomPlayers[myId]={name:me||"Anfitrión"};
+    let changed=false;
+    for(const id of Object.keys(roomPlayers)){
+      if(!players[id]||players[id].name!==roomPlayers[id].name)changed=true;
+      players[id]=roomPlayers[id];
+      scores[id]=scores[id]??0;
+    }
+    for(const id of Object.keys(players)){
+      if(id!==myId&&!roomPlayers[id]){
+        delete players[id];
+        delete scores[id];
+        changed=true;
+      }
+    }
+    if(changed){
+      renderPlayers();
+      updateLobbyControls();
+      await syncState();
+    }
+  });
+
   channel.on("broadcast",{event:"HELLO"},async({payload})=>{
     if(!isHost||payload?.room!==room||!payload.id)return;
-    // HELLO también funciona como reintento de entrada. Así el anfitrión
-    // recupera jugadores aunque el primer JOIN se haya perdido.
     const requested=String(payload.name||"").trim().slice(0,24);
     const playerName=requested||"Jugador";
     if(!players[payload.id]){
@@ -377,6 +408,8 @@ async function setupRealtime(){
       else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")reject(err||new Error(status));
     });
   });
+  // El canal ya está suscrito; Presence queda listo para descubrir jugadores.
+
   })();
   try{await realtimeReady}catch(e){realtimeReady=null;throw e}
 }
@@ -412,6 +445,7 @@ async function createRoom(){
   txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");updateLobbyControls();
   const createBtn=document.querySelector('#hostControls button');
   if(createBtn)createBtn.disabled=true;
+  await channel.track({room,id:myId,name:me,role:"host"});
   await syncState();
   if(lobbyHeartbeat)clearInterval(lobbyHeartbeat);
   // Broadcast no es un almacén de estado: mientras esperamos jugadores, repetimos
@@ -429,6 +463,7 @@ async function joinRoom(){
   myId="player-"+crypto.randomUUID();isHost=false;
   hide("hostControls");hide("joinControls");show("roomInfo");txt("roomCode",room);
   txt("wait",me==="Jugador"?"Entrando como Jugador…":"Buscando al anfitrión…");
+  await channel.track({room,id:myId,name:me,role:"player"});
   await announceJoin();
   // Si el primer broadcast se pierde o el anfitrión estaba reconectando,
   // volvemos a anunciar la entrada hasta recibir STATE.
