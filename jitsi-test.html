@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Play · Jitsi Test</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:18px 16px 8px;text-align:center}h1{margin:0;font-size:24px}p{margin:7px 0;color:#bbb;font-size:14px}
+#setup{padding:16px;max-width:520px;margin:auto}input,button{width:100%;padding:14px;margin:6px 0;border-radius:12px;border:0;font-size:16px}input{background:#222;color:#fff;border:1px solid #444}button{background:#fff;color:#111;font-weight:700}
+#meet{height:70vh;min-height:480px;margin:10px auto;max-width:900px;border-radius:16px;overflow:hidden;background:#000;display:none}
+#status{text-align:center;padding:8px;color:#8f8}
+.small{text-align:center;font-size:12px;color:#777;padding:8px 16px 20px}
+</style>
+</head>
+<body>
+<header><h1>🎭 Family Play · Video Test</h1><p>Prueba aislada. No modifica el juego principal.</p></header>
+<section id="setup">
+<input id="name" placeholder="Tu nombre" autocomplete="name">
+<input id="room" value="FamilyPlayTest" placeholder="Código de sala">
+<button id="join">ENTRAR A LA PRUEBA</button>
+</section>
+<div id="status">Esperando...</div>
+<div id="meet"></div>
+<div class="small">Usa el mismo código de sala en 2 o más teléfonos. Permite cámara y micrófono.</div>
+<script src="https://meet.jit.si/external_api.js"></script>
+<script>
+let api=null;
+const $=id=>document.getElementById(id);
+$("join").onclick=()=>{
+ const name=($("name").value||"Jugador").trim().replace(/[^a-zA-Z0-9 áéíóúÁÉÍÓÚñÑ_-]/g,"").slice(0,30)||"Jugador";
+ const room=($("room").value||"FamilyPlayTest").trim().replace(/[^a-zA-Z0-9_-]/g,"").slice(0,60)||"FamilyPlayTest";
+ $("meet").style.display="block"; $("status").textContent="Conectando…";
+ if(api){try{api.dispose()}catch(e){}}
+ api=new JitsiMeetExternalAPI("meet.jit.si",{
+   roomName:room,
+   parentNode:$("meet"),
+   width:"100%",height:"100%",
+   userInfo:{displayName:name},
+   lang:"es",
+   configOverwrite:{
+     prejoinConfig:{enabled:true},
+     disableInviteFunctions:true,
+     disableThirdPartyRequests:true,
+     startWithAudioMuted:false,
+     startWithVideoMuted:false
+   },
+   interfaceConfigOverwrite:{
+     TOOLBAR_BUTTONS:["microphone","camera","hangup","tileview"],
+     SHOW_JITSI_WATERMARK:false,
+     SHOW_WATERMARK_FOR_GUESTS:false
+   }
+ });
+ api.addListener("videoConferenceJoined",e=>{$("status").textContent="🟢 Conectado · "+(e.displayName||name)});
+ api.addListener("participantJoined",e=>{$("status").textContent="🟢 Otro jugador conectado"});
+ api.addListener("participantLeft",e=>{$("status").textContent="Jugador salió de la prueba"});
+ api.addListener("cameraError",e=>{$("status").textContent="⚠️ Error de cámara: "+(e.message||"revisa permisos")});
+ api.addListener("readyToClose",()=>{$("status").textContent="Prueba terminada"});
+};
+</script>
+</body>
+</html>
