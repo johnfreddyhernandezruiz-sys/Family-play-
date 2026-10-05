@@ -77,7 +77,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
         <video id="selfPreview" class="hidden" autoplay muted playsinline style="width:100%;border-radius:18px;margin-top:14px"></video>
       </div>
       <div id="hostImitation" class="hidden" style="margin-top:16px">
-        <div class="round">🎬 ¡TODOS MIRAN LA PANTALLA!</div>
+        <div class="round">🎭 ¡TODOS ESTÁN ATENTOS!</div>
         <video id="remoteVideo" autoplay playsinline style="width:100%;border-radius:18px;background:#050712;min-height:220px"></video><audio id="remoteAudio" autoplay playsinline></audio>
         <p id="hostImitationText" class="result">Cuando termine, voten quién estaba detrás de la imitación.</p>
         <div id="imitationVotes" class="votegrid"></div>
@@ -472,7 +472,9 @@ function renderImitation(){
     txt("missionText",videoMode?"🎭 Alguien recibió una misión secreta. Observa bien.":"🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
     hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
   }
-  if(isHost)show("hostImitation");else hide("hostImitation");
+  // Todos los jugadores que no son el actor deben ver/escuchar la imitación.
+  // El actor conserva únicamente su vista previa local.
+  if(!mine)show("hostImitation");else hide("hostImitation");
   if(videoMode){show("remoteVideo");hide("remoteAudio")}else{hide("remoteVideo");show("remoteAudio")}
   renderImitationVotes();
 }
