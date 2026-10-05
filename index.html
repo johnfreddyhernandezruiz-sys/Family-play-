@@ -202,6 +202,7 @@ let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],s
 let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
 let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
 let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
+let joinRetry=null,lobbyHeartbeat=null;
 let rtcPeers={},rtcIceQueues={};
 let rtcIceServers=[
   {urls:"stun:stun.l.google.com:19302"},
@@ -244,7 +245,15 @@ async function setupRealtime(){
 
   channel.on("broadcast",{event:"JOIN"},async({payload})=>{
     if(!isHost||payload?.room!==room||!payload.id)return;
-    players[payload.id]={name:String(payload.name||"Jugador").slice(0,24)};
+    // Un jugador puede entrar sin escribir nombre. Nunca debe quedar bloqueado por eso.
+    const requested=String(payload.name||"").trim().slice(0,24);
+    let playerName=requested||"Jugador";
+    if(Object.entries(players).some(([id,p])=>id!==payload.id && p?.name===playerName)){
+      let n=2;
+      while(Object.values(players).some(p=>p?.name===`Jugador ${n}`))n++;
+      playerName=playerName==="Jugador"?`Jugador ${n}`:`${playerName} ${n}`;
+    }
+    players[payload.id]={name:playerName};
     scores[payload.id]=scores[payload.id]??0;
     await syncState();
   });
@@ -264,6 +273,8 @@ async function setupRealtime(){
     if(payload.phase==="finished")renderFinal();
     renderPlayers();
     if(isHost)updateLobbyControls();
+    // Si el anfitrión respondió, dejamos de insistir con el JOIN.
+    if(!isHost && payload.players?.[myId])stopJoinRetry();
   });
 
   channel.on("broadcast",{event:"VOTE"},async({payload})=>{
@@ -362,26 +373,44 @@ async function syncState(){await broadcast("STATE",snapshot())}
 
 function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
 
+function stopJoinRetry(){
+  if(joinRetry){clearInterval(joinRetry);joinRetry=null}
+}
+
+async function announceJoin(){
+  if(!room||!myId||isHost)return;
+  await broadcast("JOIN",{room,id:myId,name:me});
+  await broadcast("HELLO",{room});
+}
+
 async function createRoom(){
   if(!channel)return;
+  stopJoinRetry();
   me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
   myId="host-"+crypto.randomUUID();room=Math.random().toString(36).slice(2,8).toUpperCase();
   isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
   hide("hostControls");hide("joinControls");show("roomInfo");
   txt("roomCode",room);txt("wait","Comparte el código con tu familia.");updateLobbyControls();
   await syncState();
+  if(lobbyHeartbeat)clearInterval(lobbyHeartbeat);
+  // Broadcast no es un almacén de estado: mientras esperamos jugadores, repetimos
+  // el estado para que una conexión lenta no deje al anfitrión solo.
+  lobbyHeartbeat=setInterval(()=>{if(isHost&&phase==="lobby"&&room)syncState()},3000);
 }
 
 async function joinRoom(){
   if(!channel)return;
+  stopJoinRetry();
   me=($("joinName").value.trim()||"Jugador").slice(0,24);
   room=$("roomInput").value.trim().toUpperCase();
   if(!/^[A-Z0-9]{4,8}$/.test(room)){txt("err","Escribe un código de sala válido.");return}
   myId="player-"+crypto.randomUUID();isHost=false;
   hide("hostControls");hide("joinControls");show("roomInfo");txt("roomCode",room);
-  txt("wait","Buscando al anfitrión…");
-  await broadcast("JOIN",{room,id:myId,name:me});
-  await broadcast("HELLO",{room});
+  txt("wait",me==="Jugador"?"Entrando como Jugador…":"Buscando al anfitrión…");
+  await announceJoin();
+  // Si el primer broadcast se pierde o el anfitrión estaba reconectando,
+  // volvemos a anunciar la entrada hasta recibir STATE.
+  joinRetry=setInterval(()=>announceJoin(),2500);
 }
 
 function updateLobbyControls(){
@@ -431,6 +460,7 @@ const missionTemplates=[
 async function startGame(){
   if(!isHost)return;
   if(count()<2){txt("err","Necesitan al menos 2 jugadores.");return}
+  if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
   round=1;used=[];scores=Object.fromEntries(ids().map(id=>[id,0]));
   await beginRound();
 }
