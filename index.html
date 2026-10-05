@@ -555,11 +555,16 @@ function startRtcWatchdog(){
   if(rtcWatchdog)clearTimeout(rtcWatchdog);
   rtcStartedAt=Date.now();
   rtcWatchdog=setTimeout(()=>{
-    if(peer && !["connected","completed"].includes(peer.iceConnectionState)){
-      txt("hostImitationText","⚠️ La conexión de video está tardando. Reintentando…");
-      if(actorId===myId && localStream) startImitationStream(true);
+    const pcs=Object.values(rtcPeers);
+    const connected=pcs.some(pc=>["connected","completed"].includes(pc.iceConnectionState));
+    const pending=pcs.some(pc=>["new","checking"].includes(pc.iceConnectionState));
+    if(!connected&&!pending&&actorId===myId&&localStream){
+      txt("result","⚠️ La red está bloqueando el video. Reintentando…");
+      startImitationStream(true);
+    }else if(!connected&&actorId===myId&&localStream){
+      txt("result","⏳ Conectando el video… si tarda demasiado, revisaremos TURN.");
     }
-  },10000);
+  },12000);
 }
 function stopLocalMedia(){
   if(timer){clearInterval(timer);timer=null}
