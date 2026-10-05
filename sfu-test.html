@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Family Play · Prueba SFU</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080b18;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:760px;margin:auto;padding:22px}.card{background:#121832;border:1px solid #ffffff18;border-radius:22px;padding:20px;margin:14px 0}
+h1{margin:0 0 6px}input,button{width:100%;padding:14px;border-radius:13px;font-size:17px;margin-top:9px}
+input{background:#080d20;color:#fff;border:1px solid #ffffff22}button{border:0;background:linear-gradient(90deg,#7b2cff,#d51cff);color:#fff;font-weight:800}
+button.secondary{background:#ffffff12}button:disabled{opacity:.5}.status{padding:10px;border-radius:12px;background:#ffffff09;margin-top:10px}
+video{width:100%;background:#02040a;border-radius:18px;min-height:230px;object-fit:cover}.small{opacity:.65;font-size:13px;line-height:1.4}
+.ok{color:#6ff0a9}.err{color:#ff7d8a}
+</style>
+</head>
+<body>
+<main>
+<h1>🎭 Family Play · Prueba SFU</h1>
+<div class="small">Prueba independiente de video mediante LiveKit SFU. No modifica todavía la ronda 3 del juego.</div>
+
+<section class="card">
+<label>Token Server ID de LiveKit</label>
+<input id="tokenId" placeholder="token-server-xxxxxx">
+<label>Nombre</label>
+<input id="name" placeholder="John">
+<label>Sala de prueba</label>
+<input id="room" value="family-play-video-test">
+<button id="connectBtn" onclick="connectRoom()">🔗 Conectar</button>
+<div id="status" class="status">Desconectado</div>
+</section>
+
+<section class="card">
+<h2>📡 Mi cámara</h2>
+<video id="local" autoplay muted playsinline></video>
+<button id="publishBtn" onclick="publishCamera()" disabled>🎥 Transmitir cámara</button>
+<button class="secondary" onclick="stopCamera()" disabled id="stopBtn">⏹️ Detener cámara</button>
+</section>
+
+<section class="card">
+<h2>👀 Cámara de los demás</h2>
+<div id="remoteWrap"><p class="small">Esperando a otro jugador…</p></div>
+</section>
+
+<section class="card">
+<h3>Estado técnico</h3>
+<div id="debug" class="small">—</div>
+</section>
+</main>
+
+<script>
+const {Room,RoomEvent,Track} = LivekitClient;
+let roomObj=null,localVideoTrack=null,localAudioTrack=null;
+
+function setStatus(msg,cls=""){const e=document.getElementById("status");e.textContent=msg;e.className="status "+cls}
+function debug(msg){document.getElementById("debug").textContent=msg}
+
+async function connectRoom(){
+  const tokenId=document.getElementById("tokenId").value.trim();
+  const name=(document.getElementById("name").value.trim()||"Jugador").slice(0,24);
+  const roomName=(document.getElementById("room").value.trim()||"family-play-video-test").slice(0,64);
+  if(!tokenId){setStatus("Falta el Token Server ID","err");return}
+  try{
+    setStatus("Generando acceso…");
+    const tokenSource=LivekitClient.TokenSource.developmentTokenServer(tokenId);
+    const creds=await tokenSource.fetch({
+      roomName,
+      participantIdentity:"fp-"+crypto.randomUUID(),
+      participantName:name
+    });
+    roomObj=new Room({adaptiveStream:true,dynacast:true});
+    roomObj.on(RoomEvent.TrackSubscribed,(track,publication,participant)=>{
+      if(track.kind===Track.Kind.Video){
+        const wrap=document.getElementById("remoteWrap");
+        wrap.innerHTML="";
+        const v=document.createElement("video");
+        v.autoplay=true;v.playsInline=true;
+        v.dataset.participant=participant.identity;
+        wrap.appendChild(v);
+        track.attach(v);
+        setStatus("🟢 Video remoto recibido","ok");
+        debug("Recibiendo video de "+(participant.name||participant.identity));
+      }
+      if(track.kind===Track.Kind.Audio){
+        track.attach();
+      }
+    });
+    roomObj.on(RoomEvent.TrackUnsubscribed,(track)=>track.detach());
+    roomObj.on(RoomEvent.ParticipantConnected,(p)=>{
+      debug("Jugador conectado: "+(p.name||p.identity));
+    });
+    roomObj.on(RoomEvent.ParticipantDisconnected,(p)=>{
+      debug("Jugador salió: "+(p.name||p.identity));
+    });
+    roomObj.on(RoomEvent.ConnectionStateChanged,(s)=>{
+      debug("Conexión SFU: "+s+" · participantes: "+roomObj.numParticipants);
+    });
+    roomObj.on(RoomEvent.Disconnected,()=>setStatus("Desconectado","err"));
+    await roomObj.connect(creds.serverUrl,creds.participantToken);
+    setStatus("🟢 Conectado al SFU · "+roomObj.numParticipants+" otro(s)","ok");
+    document.getElementById("publishBtn").disabled=false;
+    debug("Conectado a "+creds.serverUrl);
+  }catch(e){
+    console.error(e);
+    setStatus("Error: "+(e?.message||e),"err");
+    debug("Revisa Token Server ID y permisos del navegador.");
+  }
+}
+
+async function publishCamera(){
+  if(!roomObj)return;
+  try{
+    await roomObj.localParticipant.setCameraEnabled(true);
+    await roomObj.localParticipant.setMicrophoneEnabled(true);
+    const pub=roomObj.localParticipant.getTrackPublication(Track.Source.Camera);
+    if(pub?.track){
+      localVideoTrack=pub.track;
+      localVideoTrack.attach(document.getElementById("local"));
+    }
+    document.getElementById("publishBtn").disabled=true;
+    document.getElementById("stopBtn").disabled=false;
+    setStatus("🟢 Transmitiendo cámara por SFU","ok");
+  }catch(e){
+    setStatus("No se pudo activar cámara: "+e.message,"err");
+  }
+}
+
+async function stopCamera(){
+  if(!roomObj)return;
+  await roomObj.localParticipant.setCameraEnabled(false);
+  await roomObj.localParticipant.setMicrophoneEnabled(false);
+  document.getElementById("local").srcObject=null;
+  document.getElementById("publishBtn").disabled=false;
+  document.getElementById("stopBtn").disabled=true;
+  setStatus("Cámara detenida");
+}
+</script>
+</body>
+</html>
