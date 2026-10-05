@@ -200,6 +200,7 @@ const situations = [
 let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],scores={};
 let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
 let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
+let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
 
 const $=id=>document.getElementById(id);
 const show=id=>$(id)?.classList.remove("hidden");
@@ -275,13 +276,30 @@ async function setupRealtime(){
     };
     peer.ontrack=e=>{
       if(e.streams[0]){
-        $("remoteVideo").srcObject=e.streams[0];
+        const video=$("remoteVideo");
+        video.srcObject=e.streams[0];
+        video.autoplay=true;video.playsInline=true;
         show("remoteVideo");show("hostImitation");
         txt("hostImitationText","🎬 ¡EN VIVO! Todos miran la imitación.");
+        video.play().catch(()=>{
+          video.muted=true;
+          video.play().catch(()=>{});
+          txt("hostImitationText","🎬 ¡EN VIVO! Toca el video para activar el audio.");
+        });
+      }
+    };
+    peer.oniceconnectionstatechange=()=>{
+      if(["connected","completed"].includes(peer.iceConnectionState)){
+        if(rtcWatchdog){clearTimeout(rtcWatchdog);rtcWatchdog=null}
+        txt("hostImitationText","🎬 ¡EN VIVO! Todos miran la imitación.");
+      }
+      if(["failed","disconnected"].includes(peer.iceConnectionState)){
+        txt("hostImitationText","⚠️ Conexión inestable. Intentando recuperar el video…");
       }
     };
     try{
       await peer.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      await flushIce();
       const answer=await peer.createAnswer();
       await peer.setLocalDescription(answer);
       await broadcast("RTC_ANSWER",{room,to:actorId,answer:peer.localDescription});
@@ -294,8 +312,13 @@ async function setupRealtime(){
   });
 
   channel.on("broadcast",{event:"RTC_ICE"},async({payload})=>{
-    if(payload?.room!==room||payload.to!==myId||!payload.candidate||!peer)return;
-    try{await peer.addIceCandidate(new RTCIceCandidate(payload.candidate))}catch(e){console.warn("ICE",e)}
+    if(payload?.room!==room||payload.to!==myId||!payload.candidate)return;
+    if(!peer || !peer.remoteDescription){
+      pendingIce.push(payload.candidate);
+      return;
+    }
+    try{await peer.addIceCandidate(new RTCIceCandidate(payload.candidate))}
+    catch(e){console.warn("ICE",e)}
   });
 
   await channel.subscribe((status,err)=>{
@@ -506,8 +529,27 @@ function startTimer(){
   timer=setInterval(()=>{n--;txt("timer",n);if(n<=0)stopImitationStream()},1000);
 }
 function resetPeer(){
-  if(peer){try{peer.close()}catch(e){}}
-  peer=null;
+  if(rtcWatchdog){clearTimeout(rtcWatchdog);rtcWatchdog=null}
+  if(peer){try{peer.onicecandidate=null;peer.ontrack=null;peer.close()}catch(e){}}
+  peer=null;pendingIce=[];rtcStartedAt=0;
+}
+async function flushIce(){
+  if(!peer||!peer.remoteDescription)return;
+  const queue=[...pendingIce];pendingIce=[];
+  for(const candidate of queue){
+    try{await peer.addIceCandidate(new RTCIceCandidate(candidate))}
+    catch(e){console.warn("ICE queued candidate",e)}
+  }
+}
+function startRtcWatchdog(){
+  if(rtcWatchdog)clearTimeout(rtcWatchdog);
+  rtcStartedAt=Date.now();
+  rtcWatchdog=setTimeout(()=>{
+    if(peer && !["connected","completed"].includes(peer.iceConnectionState)){
+      txt("hostImitationText","⚠️ La conexión de video está tardando. Reintentando…");
+      if(actorId===myId && localStream) startImitationStream(true);
+    }
+  },10000);
 }
 function stopLocalMedia(){
   if(timer){clearInterval(timer);timer=null}
@@ -515,8 +557,9 @@ function stopLocalMedia(){
   if($("selfPreview")){$("selfPreview").srcObject=null;hide("selfPreview")}
 }
 
-async function startImitationStream(){
+async function startImitationStream(retry=false){
   if(!localStream||actorId!==myId)return;
+  if(retry && peer && ["connected","completed"].includes(peer.iceConnectionState))return;
   resetPeer();
   peer=new RTCPeerConnection({iceServers:[
     {urls:"stun:stun.l.google.com:19302"},
@@ -532,6 +575,7 @@ async function startImitationStream(){
     await broadcast("RTC_OFFER",{room,to:"HOST",actorId,offer:peer.localDescription});
     hide("recordBtn");show("stopBtn");startTimer();
     txt("result","🎬 ¡ESTÁS EN VIVO!");
+    startRtcWatchdog();
   }catch(e){console.error(e);txt("result","No se pudo iniciar el video.")}
 }
 
