@@ -629,11 +629,14 @@ async function resolveRound(){
   phase="resolved";
   if(currentMode!=="vote")stopMiroTalk();
   if(currentMode!=="vote"){
+    // En modo reto, el participante/actor recibe el punto de la ronda si engaña a la mayoría.
     Object.entries(votes).forEach(([voter,target])=>{
       if(target===actorId)scores[voter]=(scores[voter]||0)+2;
     });
     const wrong=Object.values(votes).filter(x=>x!==actorId).length;
     if(wrong>=Math.ceil(count()/2))scores[actorId]=(scores[actorId]||0)+3;
+    // Si el anfitrión es el actor, mantiene las mismas reglas; si es otro participante,
+    // ese participante puede ganar exactamente igual.
   }else{
     const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
     const max=Math.max(...Object.values(tally),0);
