@@ -579,14 +579,14 @@ function pickActorTarget(){
   return{actor,target:other[Math.floor(Math.random()*other.length)]};
 }
 const missionTemplates=[
- "Imita a {target} cuando descubre que alguien se comió algo que había guardado.",
- "Imita a {target} cuando le dicen: “Tenemos que hablar”.",
- "Imita a {target} intentando explicar por qué llegó tarde.",
- "Imita a {target} cuando el internet se cae justo en el peor momento.",
- "Imita a {target} intentando convencer a todos de una idea completamente absurda.",
- "Imita a {target} cuando recibe una noticia inesperadamente buena.",
- "Imita a {target} cuando descubre que tiene que pagar algo que no esperaba.",
- "Imita a {target} intentando ocultar que fue quien hizo una pequeña travesura."
+ "Haz una mueca o gesto que {target} hace mucho. ¡Sin decir su nombre!",
+ "Imita la forma de hablar o una frase típica de {target}.",
+ "Imita una costumbre muy característica de {target}.",
+ "Imita cómo {target} reacciona cuando algo le da rabia.",
+ "Imita cómo {target} se ríe, se sorprende o se emociona.",
+ "Imita la forma en que {target} camina, se sienta o entra a un lugar.",
+ "Imita un gesto que todos reconocerían inmediatamente como de {target}.",
+ "Haz una caricatura cariñosa de algún rasgo muy característico de {target}."
 ];
 
 async function startGame(){
@@ -605,6 +605,10 @@ async function beginRound(){
   votes={};voted=false;imitationDone=false;actorId=null;targetId=null;mission="";
   if(currentMode!=="vote"){
     const x=pickActorTarget();actorId=x.actor;targetId=x.target;
+    currentGame={
+      category:"🎭 RETO DE IMITACIÓN",
+      text:"Alguien está imitando un gesto, mueca, forma de hablar o rasgo muy característico de un familiar. ¡Descubre a quién!"
+    };
     mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace("{target}",pname(targetId));
   }
   phase="voting";renderGame();await syncState();
