@@ -325,12 +325,16 @@ async function setupRealtime(){
     round=payload.round||round;used=payload.used||used;
     if(payload.phase)phase=payload.phase;
     if(payload.game){
-      if(payload.phase==="resolved" && (payload.mode==="video"||payload.mode==="audio")) stopMiroTalk();
       currentGame=payload.game;currentMode=payload.mode||"vote";
       actorId=payload.actorId||null;targetId=payload.targetId||null;
       mission=payload.mission||"";votes=payload.votes||{};
       voted=!!votes[myId];imitationDone=!!payload.imitationDone;
-      renderGame();
+      if(payload.phase==="resolved"){
+        if(currentMode==="video"||currentMode==="audio")stopMiroTalk();
+        renderResolution();
+      }else{
+        renderGame();
+      }
     }
     if(payload.phase==="finished"){
       renderFinal();
