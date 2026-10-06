@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Play · V13</title>
+<title>Family Play · V14</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
@@ -88,8 +88,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V13 · 105 situaciones · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V13 · SFU MiroTalk · video + audio · lobby + recuperación</div>
+  <div class="tiny">V14 · 105 situaciones · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V14 · SFU MiroTalk · video + audio · lobby + recuperación</div>
 </div>
 
 <script>
@@ -476,7 +476,7 @@ function restoreSavedGame(){
         joinRetry=setInterval(()=>announceJoin(),2500);
       }
     }).catch(()=>{});
-    if(currentGame&&phase!=="lobby")renderGame();
+    // En jugadores no mostramos la partida guardada hasta recibir STATE del anfitrión; evita abrir una ronda vieja al entrar/recargar.\n    if(isHost&&currentGame&&phase!=="lobby")renderGame();
   }catch(e){console.warn("restore",e)}
 }
 
