@@ -25,7 +25,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
 
   <section id="onboarding" class="card">
     <h2>😂 Una partida nunca será igual</h2>
-    <p>Ahora Family Play tiene <b>105 situaciones</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
+    <p>Ahora Family Play tiene <b>10 preguntas eróticas</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
     <div class="grid">
       <div>📱 Cada persona entra desde su celular.</div>
       <div>🎭 Alguien interpreta o responde la situación.</div>
@@ -467,7 +467,7 @@ function randomIndex(max){
 function pickSituation(){
   let a=situations.map((_,i)=>i).filter(i=>!used.includes(i));
   if(!a.length){used=[];a=situations.map((_,i)=>i)}
-  // Las situaciones se eligen entre las 100 disponibles, no por bloques.
+  // Las situaciones se eligen entre las 10 disponibles, no por bloques.
   // Además evitamos repetir la pregunta inicial de la partida anterior.
   if(round===1&&lastFirstSituation!==null&&a.length>1){
     const filtered=a.filter(i=>i!==lastFirstSituation);
