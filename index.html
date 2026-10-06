@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Play · V14</title>
+<title>Family Play · V15</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
@@ -88,8 +88,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V14 · 105 situaciones · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V14 · SFU MiroTalk · video + audio · lobby + recuperación</div>
+  <div class="tiny">V15 · 105 situaciones · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V15 · SFU MiroTalk · video + audio · lobby + recuperación</div>
 </div>
 
 <script>
@@ -338,12 +338,12 @@ async function setupRealtime(){
     }
     if(payload.phase==="finished"){
       renderFinal();
-      try{localStorage.removeItem("familyplay_v13_state")}catch(e){}
+      try{localStorage.removeItem("familyplay_v14_state")}catch(e){}
     }
     renderPlayers();
     if(isHost)updateLobbyControls();
     // Todos los jugadores guardan el estado recibido para poder recuperar la partida.
-    try{localStorage.setItem("familyplay_v13_state",JSON.stringify({...payload,me,myId,isHost,room}))}catch(e){}
+    try{localStorage.setItem("familyplay_v14_state",JSON.stringify({...payload,me,myId,isHost,room}))}catch(e){}
     // Si el anfitrión respondió, dejamos de insistir con el JOIN.
     if(!isHost && payload.players?.[myId])stopJoinRetry();
   });
@@ -451,21 +451,21 @@ function snapshot(){
 }
 async function syncState(){
   const snap=snapshot();
-  try{localStorage.setItem("familyplay_v13_state",JSON.stringify({...snap,me,myId,isHost,room}))}catch(e){}
+  try{localStorage.setItem("familyplay_v14_state",JSON.stringify({...snap,me,myId,isHost,room}))}catch(e){}
   await broadcast("STATE",snap);
 }
 
 function showLobby(){hide("onboarding");show("lobby");setupRealtime();restoreSavedGame()}
 function restoreSavedGame(){
   try{
-    const raw=localStorage.getItem("familyplay_v13_state"); if(!raw)return;
+    const raw=localStorage.getItem("familyplay_v14_state"); if(!raw)return;
     const s=JSON.parse(raw);
     if(!s?.room||!s?.myId)return;
     me=s.me||"Jugador";myId=s.myId;room=s.room;isHost=!!s.isHost;
     players=s.players||{};scores=s.scores||{};round=s.round||1;used=s.used||[];
     currentGame=s.game||null;currentMode=s.mode||"vote";actorId=s.actorId||null;targetId=s.targetId||null;
     mission=s.mission||"";phase=s.phase||"lobby";votes=s.votes||{};imitationDone=!!s.imitationDone;
-    if(phase==="finished"){localStorage.removeItem("familyplay_v13_state");return}
+    if(phase==="finished"){localStorage.removeItem("familyplay_v14_state");return}
     hide("onboarding");hide("hostControls");hide("joinControls");show("lobby");show("roomInfo");
     txt("roomCode",room);renderPlayers();updateLobbyControls();
     channel?.track({room,id:myId,name:me,role:isHost?"host":"player"}).then(async()=>{
@@ -476,7 +476,8 @@ function restoreSavedGame(){
         joinRetry=setInterval(()=>announceJoin(),2500);
       }
     }).catch(()=>{});
-    // En jugadores no mostramos la partida guardada hasta recibir STATE del anfitrión; evita abrir una ronda vieja al entrar/recargar.\n    if(isHost&&currentGame&&phase!=="lobby")renderGame();
+    // En jugadores no mostramos la partida guardada hasta recibir STATE del anfitrión; evita abrir una ronda vieja al entrar/recargar.
+    if(isHost&&currentGame&&phase!=="lobby")renderGame();
   }catch(e){console.warn("restore",e)}
 }
 
@@ -494,10 +495,12 @@ async function createRoom(){
   await setupRealtime();
   if(!channel)return;
   stopJoinRetry();
+  try{localStorage.removeItem("familyplay_v14_state")}catch(e){}
   me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
   myId="host-"+crypto.randomUUID();
-  // Un solo código por partida: los reintentos no generan una sala nueva.
-  if(!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
+  // Crear sala siempre inicia una partida limpia y genera un código nuevo.
+  room=Math.random().toString(36).slice(2,8).toUpperCase();
+  currentGame=null;currentMode="vote";phase="lobby";round=1;used=[];votes={};imitationDone=false;actorId=null;targetId=null;mission="";
   isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
   hide("hostControls");hide("joinControls");show("roomInfo");
   txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");
@@ -517,6 +520,7 @@ async function joinRoom(){
   await setupRealtime();
   if(!channel)return;
   stopJoinRetry();
+  try{localStorage.removeItem("familyplay_v14_state")}catch(e){}
   me=($("joinName").value.trim()||"Jugador").slice(0,24);
   room=$("roomInput").value.trim().toUpperCase();
   if(!/^[A-Z0-9]{4,8}$/.test(room)){txt("err","Escribe un código de sala válido.");return}
