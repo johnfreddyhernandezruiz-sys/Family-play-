@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Play · V17</title>
+<title>Family Play · V18</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
@@ -88,8 +88,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V17 · 117 preguntas nuevas · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V17 · SFU MiroTalk · video + audio · lobby + recuperación</div>
+  <div class="tiny">V18 · prueba atrevida · 10 rondas · 🔥 video + 🎙️ audio por MiroTalk</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟠 V18 · prueba atrevida · SFU MiroTalk · video + audio</div>
 </div>
 
 <script>
@@ -604,14 +604,20 @@ function pickActorTarget(){
   return{actor,target:other[Math.floor(Math.random()*other.length)]};
 }
 const missionTemplates=[
- "Haz una mueca o gesto que {target} hace mucho. ¡Sin decir su nombre!",
- "Imita la forma de hablar o una frase típica de {target}.",
- "Imita una costumbre muy característica de {target}.",
- "Imita cómo {target} reacciona cuando algo le da rabia.",
- "Imita cómo {target} se ríe, se sorprende o se emociona.",
- "Imita la forma en que {target} camina, se sienta o entra a un lugar.",
- "Imita un gesto que todos reconocerían inmediatamente como de {target}.",
- "Haz una caricatura cariñosa de algún rasgo muy característico de {target}."
+ "Haz una mirada o gesto de seducción durante 5 segundos. ¡Sin hablar! El grupo debe descubrir a quién estás imitando.",
+ "Haz una expresión que usarías para dejar claro que alguien te atrae. ¡Sin decir una palabra!",
+ "Haz tu mejor mirada coqueta durante 5 segundos. ¡El grupo debe adivinar a quién estás imitando!",
+ "Representa con un gesto cómo intentarías llamar la atención de alguien que te atrae.",
+ "Haz una sonrisa o mirada sugerente que todos reconozcan como propia de {target}.",
+ "Imita la manera en que {target} coquetearía sin decir una sola palabra.",
+ "Haz una pose elegante y sugerente que recuerde a {target}.",
+ "Haz un gesto de atracción exagerado y divertido, sin hablar."
+];
+const audioMissionTemplates=[
+ "Haz durante 3 segundos tu mejor sonido de placer. ¡El grupo debe adivinar a quién estás imitando!",
+ "Haz un sonido breve y sugerente, sin palabras. ¡Que el grupo descubra a quién estás imitando!",
+ "Representa con un sonido breve cómo reaccionaría {target} ante algo que le encanta.",
+ "Haz un sonido coqueto de 3 segundos. ¡Sin decir palabras!"
 ];
 
 async function startGame(){
@@ -634,7 +640,8 @@ async function beginRound(){
       category:"🎭 RETO DE IMITACIÓN",
       text:"Alguien está imitando un gesto, mueca, forma de hablar o rasgo muy característico de un familiar. ¡Descubre a quién!"
     };
-    mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace("{target}",pname(targetId));
+    const bank=currentMode==="audio"?audioMissionTemplates:missionTemplates;
+    mission=bank[Math.floor(Math.random()*bank.length)].replace("{target}",pname(targetId));
   }
   phase="voting";renderGame();await syncState();
 }
