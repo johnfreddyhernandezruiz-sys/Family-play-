@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Play · V8</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
+.wrap{max-width:900px;margin:auto;padding:24px 18px 40px} .brand{text-align:center} .masks{font-size:48px;filter:drop-shadow(0 0 18px #c45cff)} h1{margin:4px 0;font-size:clamp(34px,8vw,64px);letter-spacing:-2px} .tag{opacity:.8;margin-bottom:18px}
+.card{background:rgba(15,18,43,.72);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:22px;box-shadow:0 18px 60px #0007;backdrop-filter:blur(12px);margin-top:18px}
+h2{margin-top:0} .grid{display:grid;gap:12px} input{width:100%;padding:15px;border-radius:14px;border:1px solid #ffffff22;background:#080d20;color:white;font-size:18px}
+button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:800;cursor:pointer;color:white;background:linear-gradient(90deg,#7b2cff,#d51cff);box-shadow:0 8px 28px #8b2cff55} button.secondary{background:#ffffff12;box-shadow:none;border:1px solid #ffffff18} button:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap} .status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#16c78422;color:#7ff5bf;font-size:14px} .dot{width:9px;height:9px;border-radius:50%;background:#25e58b;box-shadow:0 0 10px #25e58b}
+.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:15px} .player{padding:14px;border:1px solid #ffffff15;border-radius:16px;background:#ffffff08}
+.hidden{display:none!important} .round{font-size:14px;opacity:.75;text-transform:uppercase;letter-spacing:2px} .category{display:inline-block;margin:12px 0;padding:7px 11px;border-radius:999px;background:#ffffff12;color:#e4c7ff} .question{font-size:clamp(25px,5vw,43px);line-height:1.13;font-weight:850;margin:8px 0 20px}
+.avatar{font-size:45px} .votegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px} .vote{background:#ffffff0b;border:1px solid #ffffff15;box-shadow:none} .result{font-size:20px;line-height:1.45} .tiny{font-size:13px;opacity:.6;text-align:center;margin-top:22px}
+
+.bigResult{font-size:clamp(30px,7vw,58px);font-weight:950;text-align:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#2a155c,#161a3b);border:1px solid #ffffff18}.scoreboard{display:grid;gap:9px;margin-top:14px}.scoreRow{display:flex;justify-content:space-between;padding:13px 15px;border-radius:14px;background:#ffffff09;border:1px solid #ffffff12}.pulse{animation:pulse 1s infinite alternate}@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.03)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="masks">🎭</div><h1>Family Play</h1><div class="tag">Una familia. Una pantalla. Todos conectados.</div></div>
+
+  <section id="onboarding" class="card">
+    <h2>😂 Una partida nunca será igual</h2>
+    <p>Ahora Family Play tiene <b>100 situaciones</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
+    <div class="grid">
+      <div>📱 Cada persona entra desde su celular.</div>
+      <div>🎭 Alguien interpreta o responde la situación.</div>
+      <div>🕵️ Los demás intentan descubrir quién está detrás.</div>
+      <div>🔥 La ronda 10 es el gran final.</div>
+    </div>
+    <div class="row" style="margin-top:18px"><button onclick="showLobby()">¡Vamos a jugar!</button><button class="secondary" onclick="showLobby()">Ya conozco el juego</button></div>
+  </section>
+
+  <section id="lobby" class="card hidden">
+    <div class="status"><span class="dot"></span> <span id="conn">Conectando…</span></div>
+    <div id="hostControls">
+      <h2>Crear una sala</h2>
+      <input id="hostName" placeholder="Tu nombre" maxlength="24">
+      <div class="row" style="margin-top:12px"><button onclick="createRoom()">Crear sala</button></div>
+    </div>
+    <div id="joinControls">
+      <h2>Entrar a una sala</h2>
+      <input id="joinName" placeholder="Tu nombre" maxlength="24">
+      <input id="roomInput" placeholder="Código de sala" maxlength="8" style="margin-top:10px;text-transform:uppercase">
+      <div class="row" style="margin-top:12px"><button onclick="joinRoom()">Entrar</button></div>
+    </div>
+    <div id="roomInfo" class="hidden">
+      <h2>Sala <span id="roomCode"></span></h2>
+      <div id="players" class="players"></div>
+      <div class="row" style="margin-top:18px"><button id="startBtn" class="hidden" onclick="startGame()">🎭 Empezar Family Play</button></div>
+      <p id="wait" class="tiny">Comparte el código con tu familia.</p>
+    </div>
+    <div id="err" class="tiny"></div>
+  </section>
+
+  <section id="game" class="card hidden">
+    <div class="round">RONDA <span id="roundNo">1</span> / 10</div>
+    <div id="mode" class="category">🗳️ Votación</div><div id="scoreHint" class="tiny" style="margin:4px 0 10px">Vota rápido. La familia está mirando. 😈</div>
+    <div id="category" class="category"></div>
+    <div id="question" class="question"></div>
+    <div id="normalActions"><div id="playersGame" class="votegrid"></div></div>
+    <div id="imitationPanel" class="hidden">
+      <div id="secretMission" class="card" style="margin-top:10px;background:#241344;border-color:#a855f755">
+        <div class="round">🔒 MISIÓN SECRETA</div>
+        <div id="missionText" class="question" style="font-size:clamp(22px,4.5vw,36px)"></div>
+        <div id="timer" style="font-size:52px;font-weight:900;text-align:center">20</div>
+        <div class="row">
+          <button id="cameraBtn" onclick="startCamera()">🎥 Activar cámara</button>
+          <button id="audioBtn" class="hidden" onclick="startAudio()">🎙️ Activar micrófono</button>
+          <button id="recordBtn" class="hidden" onclick="startImitationStream()">🎬 Empezar</button>
+          <button id="stopBtn" class="hidden secondary" onclick="stopImitationStream()">⏹️ Terminar</button>
+        </div>
+        <video id="selfPreview" class="hidden" autoplay muted playsinline style="width:100%;border-radius:18px;margin-top:14px"></video>
+      </div>
+      <div id="hostImitation" class="hidden" style="margin-top:16px">
+        <div class="round">🎭 ¡TODOS ESTÁN ATENTOS!</div>
+        <video id="remoteVideo" autoplay playsinline style="width:100%;border-radius:18px;background:#050712;min-height:220px"></video><audio id="remoteAudio" autoplay playsinline></audio>
+        <p id="hostImitationText" class="result">Cuando termine, voten quién estaba detrás de la imitación.</p>
+        <div id="imitationVotes" class="votegrid"></div>
+      </div>
+    </div>
+    <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
+    <div id="result" class="result" style="margin-top:16px"></div>
+  </section>
+  <div class="tiny">V10 · 100 situaciones · 10 rondas · 🎭 una de video + 🎙️ una de audio</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 VERSIÓN CORREGIDA · Votación + aleatoriedad · lobby 2a63eec</div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://hbivgvetklqgiclxtyos.supabase.co";
+const SUPABASE_KEY = "sb_publishable_7C_LWcZfqN-6TcxDURNB7A_wcvyxoKL";
+const sb = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+const situations = [
+  { category: `😂 Calentamiento`, text: `¿Quién puede escuchar “hay comida en la cocina” desde el otro extremo de la casa aunque esté dormido?` },
+  { category: `😂 Calentamiento`, text: `¿Quién abre la nevera sin saber qué busca y cinco minutos después vuelve a abrirla como si hubiera aparecido algo nuevo?` },
+  { category: `😂 Calentamiento`, text: `¿Quién dice “ya voy” con una seguridad impresionante cuando todavía ni siquiera se ha puesto los zapatos?` },
+  { category: `😂 Calentamiento`, text: `¿Quién tiene el talento de dejar un objeto en un lugar tan absurdo que después toda la familia termina buscándolo?` },
+  { category: `😂 Calentamiento`, text: `¿Quién empieza una historia diciendo “esto es rapidito” y media hora después todavía va por la mitad?` },
+  { category: `😂 Calentamiento`, text: `¿Quién podría quedarse dormido en una reunión familiar y despertar justo cuando sirven algo rico?` },
+  { category: `😂 Calentamiento`, text: `¿Quién mira el celular mientras todos hablan y después pregunta “¿qué pasó?” como si nada?` },
+  { category: `😂 Calentamiento`, text: `¿Quién es capaz de preguntar qué vamos a comer mientras todavía está comiendo?` },
+  { category: `😂 Calentamiento`, text: `¿Quién tiene más probabilidades de decir “no quiero postre” y luego terminar probando el de todos?` },
+  { category: `😂 Calentamiento`, text: `¿Quién podría convertir una simple ida a comprar una cosa en una expedición de dos horas?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién sería capaz de esconder algo “para que nadie lo toque” y luego olvidar dónde lo escondió?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién tiene más probabilidades de dejar una puerta abierta y después preguntar quién la dejó abierta?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién podría hacer una videollamada desde el lugar más ruidoso de la casa y decir “aquí no se escucha nada”?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién sería el primero en reclamar que alguien cambió algo de lugar aunque nadie recuerde dónde estaba?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién tiene más probabilidades de mandar un audio larguísimo y terminar diciendo “en resumen…”?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién podría buscar el celular durante cinco minutos mientras lo tiene en la mano?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién sería capaz de empezar a limpiar justo cuando todos están a punto de salir?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién tiene más probabilidades de guardar una bolsa dentro de otra bolsa y luego otra dentro de esa?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién podría preguntar “¿quién se comió eso?” con la boca todavía llena?` },
+  { category: `🤣 Cosas que pasan en casa`, text: `¿Quién tiene el récord familiar de decir “yo no fui” antes de que alguien siquiera pregunte?` },
+  { category: `😈 Picante familiar`, text: `¿Quién sería capaz de terminarse algo que estaba reservado para otra persona y dejar la evidencia perfectamente escondida… según él?` },
+  { category: `😈 Picante familiar`, text: `¿Quién tiene más probabilidades de elegir el pedazo más conveniente de una bandeja diciendo “yo cojo cualquiera”?` },
+  { category: `😈 Picante familiar`, text: `¿Quién sería el primero en desaparecer cuando llega el momento de organizar después de una reunión?` },
+  { category: `😈 Picante familiar`, text: `¿Quién tiene más talento para encontrar una excusa creativa cuando le toca hacer una tarea de la casa?` },
+  { category: `😈 Picante familiar`, text: `¿Quién podría hacer una compra completamente innecesaria y defenderla como si fuera una inversión estratégica?` },
+  { category: `😈 Picante familiar`, text: `¿Quién sería capaz de decir “yo no tengo hambre” y aparecer misteriosamente cuando llega la comida?` },
+  { category: `😈 Picante familiar`, text: `¿Quién podría reclamar que alguien le tomó algo prestado aunque él nunca recuerde haberlo prestado?` },
+  { category: `😈 Picante familiar`, text: `¿Quién tiene más probabilidades de cambiar de canal justo cuando empieza la parte buena?` },
+  { category: `😈 Picante familiar`, text: `¿Quién sería capaz de negar que ronca aunque toda la familia tenga pruebas?` },
+  { category: `😈 Picante familiar`, text: `¿Quién tiene más probabilidades de convertir una pequeña discusión en un debate nacional?` },
+  { category: `🤪 Situaciones absurdas`, text: `La familia gana un viaje gratis pero solo hay espacio para tres. ¿Quién intentaría convencer al organizador de que las reglas se pueden negociar?` },
+  { category: `🤪 Situaciones absurdas`, text: `Un extraterrestre pide conocer al familiar “más inteligente”. ¿Quién se postula sin que nadie lo nomine?` },
+  { category: `🤪 Situaciones absurdas`, text: `Durante 24 horas todos deben decir exactamente lo que piensan. ¿Quién pide terminar el experimento primero?` },
+  { category: `🤪 Situaciones absurdas`, text: `La casa cobra vida y decide expulsar al más desordenado. ¿Quién recibe la carta de salida?` },
+  { category: `🤪 Situaciones absurdas`, text: `La familia queda encerrada en un supermercado toda la noche. ¿Quién encuentra primero la sección de comida?` },
+  { category: `🤪 Situaciones absurdas`, text: `Hay un apagón y alguien escucha un ruido en la cocina. ¿Quién manda a otro a investigar?` },
+  { category: `🤪 Situaciones absurdas`, text: `Un robot aprende a imitar a un familiar. ¿A quién copiaría porque tiene demasiadas frases repetidas?` },
+  { category: `🤪 Situaciones absurdas`, text: `La mascota puede hablar durante cinco minutos. ¿Qué familiar sería el más nervioso por lo que pueda contar?` },
+  { category: `🤪 Situaciones absurdas`, text: `La familia debe montar un circo en una hora. ¿Quién se autoproclama director sin tener idea?` },
+  { category: `🤪 Situaciones absurdas`, text: `Todos reciben un superpoder inútil. ¿Quién terminaría usando el suyo para algo completamente innecesario?` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría un familiar al descubrir que alguien se comió su comida favorita.` },
+  { category: `🎭 Imitación`, text: `Imita a la persona de la familia cuando le dicen: “Tenemos que hablar”.` },
+  { category: `🎭 Imitación`, text: `Imita cómo alguien de la familia pide prestado algo que probablemente nunca devolverá.` },
+  { category: `🎭 Imitación`, text: `Imita la reacción de un familiar cuando el internet se pone lento justo en el momento importante.` },
+  { category: `🎭 Imitación`, text: `Imita a alguien intentando convencer a todos de que una idea terrible es excelente.` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría un familiar al descubrir una visita inesperada con la casa desordenada.` },
+  { category: `🎭 Imitación`, text: `Imita a alguien tratando de explicar por qué llegó tarde sin aceptar que llegó tarde.` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría un familiar si descubre que ganó una cantidad absurda de dinero.` },
+  { category: `🎭 Imitación`, text: `Imita a alguien intentando parecer tranquilo después de romper accidentalmente algo de la casa.` },
+  { category: `🎭 Imitación`, text: `Imita cómo reaccionaría un familiar al descubrir que otra persona sabe un secreto que él creía oculto.` },
+  { category: `🕵️ Sospechosos`, text: `Desaparece el último postre. ¿Quién sería el sospechoso principal y qué pista lo delataría?` },
+  { category: `🕵️ Sospechosos`, text: `Aparece una compra extraña en la casa y nadie admite haberla hecho. ¿Quién parece más sospechoso?` },
+  { category: `🕵️ Sospechosos`, text: `Alguien cambió el nombre del grupo familiar por uno vergonzoso. ¿Quién tendría el perfil psicológico para hacerlo?` },
+  { category: `🕵️ Sospechosos`, text: `Aparece una foto comprometida en el chat familiar. ¿Quién tendría más probabilidades de haberla enviado?` },
+  { category: `🕵️ Sospechosos`, text: `Alguien cambió la contraseña del Wi-Fi. ¿Quién tendría una razón sospechosa para hacerlo?` },
+  { category: `🕵️ Sospechosos`, text: `Hay una bolsa de comida escondida en un lugar extraño. ¿Quién sería capaz de tener una reserva secreta?` },
+  { category: `🕵️ Sospechosos`, text: `Alguien dejó una nota anónima en la nevera. ¿Quién escribiría algo así y qué diría?` },
+  { category: `🕵️ Sospechosos`, text: `Una alarma suena a una hora absurda. ¿Quién tendría la explicación menos creíble?` },
+  { category: `🕵️ Sospechosos`, text: `El último pedazo desaparece justo antes de la cena. ¿Quién tendría la mejor coartada… y por eso mismo sería más sospechoso?` },
+  { category: `🕵️ Sospechosos`, text: `Una persona sabe exactamente quién hizo una travesura pero dice “yo no vi nada”. ¿Quién tendría más probabilidades de saber demasiado?` },
+  { category: `🔥 Caos familiar`, text: `El carro queda sin gasolina a mitad del viaje. ¿Quién diría “yo les advertí” aunque nadie recuerde que lo hizo?` },
+  { category: `🔥 Caos familiar`, text: `La familia debe salir en cinco minutos. ¿Quién todavía estaría buscando algo que tenía en la mano?` },
+  { category: `🔥 Caos familiar`, text: `Solo queda una empanada para todos. ¿Quién inventaría la estrategia más descarada para quedársela?` },
+  { category: `🔥 Caos familiar`, text: `En un viaje nadie sabe dónde están. ¿Quién fingiría tener el mapa bajo control?` },
+  { category: `🔥 Caos familiar`, text: `El hotel dice que no aparece la reserva. ¿Quién se convertiría inmediatamente en negociador profesional?` },
+  { category: `🔥 Caos familiar`, text: `Todos están muertos de hambre y la comida tarda una hora. ¿Quién empieza a revisar el menú por tercera vez?` },
+  { category: `🔥 Caos familiar`, text: `El vuelo sale en diez minutos. ¿Quién todavía estaría comprando algo “rapidito”?` },
+  { category: `🔥 Caos familiar`, text: `Hay que escoger una sola canción para un viaje de diez horas. ¿Quién destruiría la convivencia?` },
+  { category: `🔥 Caos familiar`, text: `La familia se pierde en un centro comercial. ¿Quién termina organizando una misión de rescate?` },
+  { category: `🔥 Caos familiar`, text: `El viaje soñado se cancela. ¿Quién ya tendría otro plan antes de que los demás terminen de quejarse?` },
+  { category: `💥 Situaciones incómodas`, text: `En una reunión alguien dice algo que nadie debía escuchar. ¿Quién sería el primero en intentar cambiar de tema?` },
+  { category: `💥 Situaciones incómodas`, text: `Alguien recibe un mensaje que dice “necesitamos hablar”. ¿Quién imaginaría inmediatamente el peor escenario?` },
+  { category: `💥 Situaciones incómodas`, text: `Una persona se queda mirando el plato de otra con demasiada atención. ¿Quién sería?` },
+  { category: `💥 Situaciones incómodas`, text: `La familia debe elegir quién cocina toda la semana. ¿A quién elegirían solo para verlo sufrir?` },
+  { category: `💥 Situaciones incómodas`, text: `Alguien descubre que su foto salió terrible. ¿Quién pediría repetir la foto hasta conseguir aprobación internacional?` },
+  { category: `💥 Situaciones incómodas`, text: `Una persona llega a una reunión diciendo “no me voy a quedar mucho”. ¿Quién sería el último en irse?` },
+  { category: `💥 Situaciones incómodas`, text: `Hay que cantar una canción frente a toda la familia. ¿Quién tendría más confianza que talento?` },
+  { category: `💥 Situaciones incómodas`, text: `Alguien dice “yo sé hacerlo” y cinco minutos después todos están tratando de arreglar el problema. ¿Quién sería?` },
+  { category: `💥 Situaciones incómodas`, text: `La familia necesita elegir un representante para hablar con un vecino enojado. ¿Quién sería la peor elección?` },
+  { category: `💥 Situaciones incómodas`, text: `Alguien promete guardar un secreto. ¿Quién sería el primero en casi contarlo por accidente?` },
+  { category: `🤯 Nivel locura`, text: `La familia gana un millón, pero hay que elegir a una persona para administrarlo. ¿A quién jamás le entregarían la tarjeta?` },
+  { category: `🤯 Nivel locura`, text: `Si todos intercambiaran celulares durante un día, ¿quién pediría recuperar el suyo en menos de cinco minutos?` },
+  { category: `🤯 Nivel locura`, text: `Si esta familia tuviera un reality, ¿quién sería el protagonista y quién causaría todos los problemas?` },
+  { category: `🤯 Nivel locura`, text: `Si la familia formara una banda, ¿quién se autoproclamaría cantante aunque nadie se lo pidiera?` },
+  { category: `🤯 Nivel locura`, text: `Si mañana todos tuvieran que vivir en una sola habitación, ¿quién pediría una habitación propia primero?` },
+  { category: `🤯 Nivel locura`, text: `Si hubiera un campeonato mundial de excusas, ¿quién llegaría a la final?` },
+  { category: `🤯 Nivel locura`, text: `Si cada familiar tuviera un premio absurdo, ¿quién ganaría “mejor capacidad para desaparecer cuando toca ayudar”?` },
+  { category: `🤯 Nivel locura`, text: `Si solo una persona pudiera controlar el televisor durante un mes, ¿quién provocaría una revolución?` },
+  { category: `🤯 Nivel locura`, text: `Si la familia tuviera que sobrevivir a una semana sin internet, ¿quién pediría asilo en otra casa?` },
+  { category: `🤯 Nivel locura`, text: `Gran final: ¿quién es la persona de esta familia que más probablemente termine diciendo “yo les dije” cuando todo salga mal?` },
+  { category: `👑 Gran final`, text: `Si esta familia tuviera un botón de “silenciar”, ¿a quién se lo aplicarían primero?` },
+  { category: `👑 Gran final`, text: `Si hubiera un premio al “mejor experto en hacerse el que no escuchó”, ¿quién lo gana?` },
+  { category: `👑 Gran final`, text: `Si todos tuvieran que intercambiar sus tareas por una semana, ¿quién pediría su vida de vuelta el primer día?` },
+  { category: `👑 Gran final`, text: `Si la familia tuviera un noticiero, ¿quién presentaría las noticias y quién inventaría los titulares?` },
+  { category: `👑 Gran final`, text: `Si una cámara estuviera grabando la casa durante todo un día, ¿qué familiar tendría más momentos inexplicables?` },
+  { category: `👑 Gran final`, text: `Si hubiera que elegir a alguien para sobrevivir solo con las sobras de la nevera, ¿quién tendría ventaja?` },
+  { category: `👑 Gran final`, text: `Si cada discusión familiar tuviera árbitro, ¿quién recibiría más tarjetas amarillas?` },
+  { category: `👑 Gran final`, text: `Si la familia pudiera crear una ley absurda para la casa, ¿quién propondría la más peligrosa?` },
+  { category: `👑 Gran final`, text: `Si todos tuvieran que hacer una entrada triunfal cada vez que llegan a casa, ¿quién se lo tomaría demasiado en serio?` },
+  { category: `👑 Gran final`, text: `Última acusación: ¿quién tiene más probabilidades de ser culpable de algo y aun así convencer a todos de que fue otra persona?` }
+];
+
+
+let channel=null,room="",isHost=false,me="",myId="",players={},round=0,used=[],scores={};
+let lastFirstSituation=null;
+let currentGame=null,currentMode="vote",actorId=null,targetId=null,mission="",votes={};
+let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDone=false;
+let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
+let joinRetry=null,lobbyHeartbeat=null,realtimeReady=null;
+let rtcPeers={},rtcIceQueues={};
+let rtcIceServers=[
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun1.l.google.com:19302"},
+  {urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443",username:"openrelayproject",credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443?transport=tcp",username:"openrelayproject",credential:"openrelayproject"}
+];
+function setRtcIceServers(servers){if(Array.isArray(servers)&&servers.length)rtcIceServers=servers}
+async function loadTurnCredentials(){
+  try{
+    const r=await fetch(SUPABASE_URL+"/functions/v1/turn-credentials",{cache:"no-store"});
+    if(!r.ok)throw new Error("TURN HTTP "+r.status);
+    const d=await r.json();
+    setRtcIceServers(d.iceServers||d.servers);
+    return true;
+  }catch(e){console.warn("TURN no disponible; usando STUN",e);return false}
+}
+const rtcConfig=()=>({iceServers:rtcIceServers,iceTransportPolicy:"all"});
+
+const $=id=>document.getElementById(id);
+const show=id=>$(id)?.classList.remove("hidden");
+const hide=id=>$(id)?.classList.add("hidden");
+const txt=(id,v)=>{if($(id))$(id).textContent=v};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+const ids=()=>Object.keys(players);
+const pname=id=>players[id]?.name||"Jugador";
+const count=()=>ids().length;
+
+async function broadcast(event,payload={}){
+  if(!channel)return;
+  try{await channel.send({type:"broadcast",event,payload})}catch(e){console.warn(event,e)}
+}
+
+async function setupRealtime(){
+  if(realtimeReady)return realtimeReady;
+  realtimeReady=(async()=>{
+  await loadTurnCredentials();
+  channel=sb.channel("family-play-v10",{config:{broadcast:{ack:true}}});
+
+  // Presence es la capa de descubrimiento de jugadores. Broadcast sigue
+  // llevando el estado del juego, pero Presence evita depender de que un JOIN
+  // llegue justo en el instante correcto.
+  channel.on("presence",{event:"sync"},async()=>{
+    if(!isHost||!room)return;
+    const state=channel.presenceState();
+    const roomPlayers={};
+    Object.values(state).flat().forEach(p=>{
+      if(p?.room===room&&p?.id){
+        roomPlayers[p.id]={name:String(p.name||"Jugador").slice(0,24)};
+      }
+    });
+    if(!roomPlayers[myId])roomPlayers[myId]={name:me||"Anfitrión"};
+    let changed=false;
+    for(const id of Object.keys(roomPlayers)){
+      if(!players[id]||players[id].name!==roomPlayers[id].name)changed=true;
+      players[id]=roomPlayers[id];
+      scores[id]=scores[id]??0;
+    }
+    for(const id of Object.keys(players)){
+      if(id!==myId&&!roomPlayers[id]){
+        delete players[id];
+        delete scores[id];
+        changed=true;
+      }
+    }
+    if(changed){
+      renderPlayers();
+      updateLobbyControls();
+      await syncState();
+    }
+  });
+
+  channel.on("broadcast",{event:"HELLO"},async({payload})=>{
+    if(!isHost||payload?.room!==room||!payload.id)return;
+    const requested=String(payload.name||"").trim().slice(0,24);
+    const playerName=requested||"Jugador";
+    if(!players[payload.id]){
+      players[payload.id]={name:playerName};
+      scores[payload.id]=scores[payload.id]??0;
+    }
+    // Broadcast no se refleja automáticamente en la pantalla del emisor.
+    // Renderizamos localmente antes de enviar el nuevo estado.
+    renderPlayers();
+    updateLobbyControls();
+    await syncState();
+  });
+
+  channel.on("broadcast",{event:"JOIN"},async({payload})=>{
+    if(!isHost||payload?.room!==room||!payload.id)return;
+    // Un jugador puede entrar sin escribir nombre. Nunca debe quedar bloqueado por eso.
+    const requested=String(payload.name||"").trim().slice(0,24);
+    let playerName=requested||"Jugador";
+    if(Object.entries(players).some(([id,p])=>id!==payload.id && p?.name===playerName)){
+      let n=2;
+      while(Object.values(players).some(p=>p?.name===`Jugador ${n}`))n++;
+      playerName=playerName==="Jugador"?`Jugador ${n}`:`${playerName} ${n}`;
+    }
+    players[payload.id]={name:playerName};
+    scores[payload.id]=scores[payload.id]??0;
+    // El anfitrión debe verse actualizado inmediatamente en su propia pantalla.
+    renderPlayers();
+    updateLobbyControls();
+    await syncState();
+  });
+
+  channel.on("broadcast",{event:"STATE"},({payload})=>{
+    if(!payload||payload.room!==room)return;
+    players=payload.players||players;scores=payload.scores||scores;
+    round=payload.round||round;used=payload.used||used;
+    if(payload.phase)phase=payload.phase;
+    if(payload.game){
+      currentGame=payload.game;currentMode=payload.mode||"vote";
+      actorId=payload.actorId||null;targetId=payload.targetId||null;
+      mission=payload.mission||"";votes=payload.votes||{};
+      voted=!!votes[myId];imitationDone=!!payload.imitationDone;
+      renderGame();
+    }
+    if(payload.phase==="finished")renderFinal();
+    renderPlayers();
+    if(isHost)updateLobbyControls();
+    // Si el anfitrión respondió, dejamos de insistir con el JOIN.
+    if(!isHost && payload.players?.[myId])stopJoinRetry();
+  });
+
+  channel.on("broadcast",{event:"VOTE"},async({payload})=>{
+    if(!isHost||payload?.room!==room||payload.round!==round||phase!=="voting")return;
+    if(!players[payload.voter]||!players[payload.target]||votes[payload.voter])return;
+    votes[payload.voter]=payload.target;
+    await syncState();
+    if(Object.keys(votes).length>=count())resolveRound();
+  });
+
+  channel.on("broadcast",{event:"IMITATION_DONE"},async({payload})=>{
+    if(payload?.room!==room||payload.round!==round)return;
+    imitationDone=true;
+    if(isHost)await syncState();
+    renderImitationVotes();
+    txt("result","🎬 ¡Imitación terminada! Ahora voten.");
+  });
+
+  channel.on("broadcast",{event:"RTC_OFFER"},async({payload})=>{
+    if(payload?.room!==room||payload.to!==myId||!payload.actorId)return;
+    if(payload.actorId===myId)return;
+    const id=payload.actorId;
+    try{
+      if(rtcPeers[id]){try{rtcPeers[id].close()}catch(e){}}
+      const pc=new RTCPeerConnection(rtcConfig());
+      rtcPeers[id]=pc;rtcIceQueues[id]=rtcIceQueues[id]||[];
+      pc.onicecandidate=e=>{
+        if(e.candidate)broadcast("RTC_ICE",{room,to:id,from:myId,candidate:e.candidate});
+      };
+      pc.ontrack=e=>{
+        if(!e.streams[0])return;
+        show("hostImitation");
+        if(currentMode==="audio"){
+          const audio=$("remoteAudio");
+          audio.srcObject=e.streams[0];audio.autoplay=true;audio.playsInline=true;
+          audio.play().catch(()=>{});
+          txt("hostImitationText","🎙️ ¡EN VIVO! Escucha la imitación.");
+        }else{
+          const video=$("remoteVideo");
+          video.srcObject=e.streams[0];video.autoplay=true;video.playsInline=true;
+          video.play().catch(()=>{
+            video.muted=true;
+            video.play().catch(()=>{});
+            txt("hostImitationText","🎬 ¡EN VIVO! Toca el video para activar el audio.");
+          });
+        }
+      };
+      pc.oniceconnectionstatechange=()=>{
+        if(["connected","completed"].includes(pc.iceConnectionState))
+          txt("hostImitationText","🎬 ¡EN VIVO! Todos miran la imitación.");
+        if(["failed","disconnected"].includes(pc.iceConnectionState))
+          txt("hostImitationText","⚠️ Conexión inestable. Intentando recuperar el video…");
+      };
+      await pc.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      await flushIceFor(id);
+      const answer=await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await broadcast("RTC_ANSWER",{room,to:id,from:myId,answer:pc.localDescription});
+    }catch(e){
+      console.error("WebRTC offer",e);
+      txt("hostImitationText","No se pudo conectar el video.");
+    }
+  });
+
+  channel.on("broadcast",{event:"RTC_ANSWER"},async({payload})=>{
+    if(payload?.room!==room||payload.to!==myId||!payload.from||!rtcPeers[payload.from])return;
+    try{
+      await rtcPeers[payload.from].setRemoteDescription(new RTCSessionDescription(payload.answer));
+      await flushIceFor(payload.from);
+    }catch(e){console.warn("WebRTC answer",e)}
+  });
+
+  channel.on("broadcast",{event:"RTC_ICE"},async({payload})=>{
+    if(payload?.room!==room||payload.to!==myId||!payload.from||!payload.candidate)return;
+    const id=payload.from;
+    const pc=rtcPeers[id];
+    if(!pc||!pc.remoteDescription){
+      (rtcIceQueues[id] ||= []).push(payload.candidate);
+      return;
+    }
+    try{await pc.addIceCandidate(new RTCIceCandidate(payload.candidate))}
+    catch(e){console.warn("ICE",e)}
+  });
+
+  await new Promise((resolve,reject)=>{
+    channel.subscribe((status,err)=>{
+      txt("conn",status==="SUBSCRIBED"?"Conectado":status==="CHANNEL_ERROR"?"Error de conexión":"Conectando…");
+      if(err)console.warn(err);
+      if(status==="SUBSCRIBED")resolve();
+      else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")reject(err||new Error(status));
+    });
+  });
+  // El canal ya está suscrito; Presence queda listo para descubrir jugadores.
+
+  })();
+  try{await realtimeReady}catch(e){realtimeReady=null;throw e}
+}
+
+function snapshot(){
+  return {room,players,scores,round,used,game:currentGame,mode:currentMode,
+    actorId,targetId,mission,phase,votes,imitationDone};
+}
+async function syncState(){await broadcast("STATE",snapshot())}
+
+function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
+
+function stopJoinRetry(){
+  if(joinRetry){clearInterval(joinRetry);joinRetry=null}
+}
+
+async function announceJoin(){
+  if(!room||!myId||isHost)return;
+  await broadcast("JOIN",{room,id:myId,name:me});
+  await broadcast("HELLO",{room,id:myId,name:me});
+}
+
+async function createRoom(){
+  await setupRealtime();
+  if(!channel)return;
+  stopJoinRetry();
+  me=($("hostName").value.trim()||"Anfitrión").slice(0,24);
+  myId="host-"+crypto.randomUUID();
+  // Un solo código por partida: los reintentos no generan una sala nueva.
+  if(!room)room=Math.random().toString(36).slice(2,8).toUpperCase();
+  isHost=true;players={[myId]:{name:me}};scores={[myId]:0};
+  hide("hostControls");hide("joinControls");show("roomInfo");
+  txt("roomCode",room);txt("wait","Comparte este código con tu familia. Si alguien tarda, puede volver a intentar entrar sin cambiarlo.");
+  renderPlayers();
+  updateLobbyControls();
+  const createBtn=document.querySelector('#hostControls button');
+  if(createBtn)createBtn.disabled=true;
+  await channel.track({room,id:myId,name:me,role:"host"});
+  await syncState();
+  if(lobbyHeartbeat)clearInterval(lobbyHeartbeat);
+  // Broadcast no es un almacén de estado: mientras esperamos jugadores, repetimos
+  // el estado para que una conexión lenta no deje al anfitrión solo.
+  lobbyHeartbeat=setInterval(()=>{if(isHost&&phase==="lobby"&&room)syncState()},3000);
+}
+
+async function joinRoom(){
+  await setupRealtime();
+  if(!channel)return;
+  stopJoinRetry();
+  me=($("joinName").value.trim()||"Jugador").slice(0,24);
+  room=$("roomInput").value.trim().toUpperCase();
+  if(!/^[A-Z0-9]{4,8}$/.test(room)){txt("err","Escribe un código de sala válido.");return}
+  myId="player-"+crypto.randomUUID();isHost=false;
+  hide("hostControls");hide("joinControls");show("roomInfo");txt("roomCode",room);
+  txt("wait",me==="Jugador"?"Entrando como Jugador…":"Buscando al anfitrión…");
+  await channel.track({room,id:myId,name:me,role:"player"});
+  await announceJoin();
+  // Si el primer broadcast se pierde o el anfitrión estaba reconectando,
+  // volvemos a anunciar la entrada hasta recibir STATE.
+  joinRetry=setInterval(()=>announceJoin(),2500);
+}
+
+function updateLobbyControls(){
+  if(!isHost)return;
+  txt("wait",count()<2?"Necesitan al menos 2 jugadores.":"¡Listos! · "+count()+" jugadores");
+  if(count()>=2)show("startBtn");else hide("startBtn");
+}
+
+function renderPlayers(){
+  if($("players"))$("players").innerHTML=ids().map(id=>
+    '<div class="player"><div class="avatar">🎭</div><b>'+esc(pname(id))+'</b>'+(id===myId?' <small>(tú)</small>':'')+'</div>'
+  ).join("");
+  if($("playersGame"))$("playersGame").innerHTML=ids().map(id=>{
+    const disabled=voted||phase!=="voting"||id===myId;
+    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="vote(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
+  }).join("");
+}
+
+function randomIndex(max){
+  if(max<=1)return 0;
+  if(window.crypto?.getRandomValues){
+    const bytes=new Uint32Array(1);
+    window.crypto.getRandomValues(bytes);
+    return Math.floor((bytes[0]/4294967296)*max);
+  }
+  return Math.floor(Math.random()*max);
+}
+function pickSituation(){
+  let a=situations.map((_,i)=>i).filter(i=>!used.includes(i));
+  if(!a.length){used=[];a=situations.map((_,i)=>i)}
+  // Las situaciones se eligen entre las 100 disponibles, no por bloques.
+  // Además evitamos repetir la pregunta inicial de la partida anterior.
+  if(round===1&&lastFirstSituation!==null&&a.length>1){
+    const filtered=a.filter(i=>i!==lastFirstSituation);
+    if(filtered.length)a=filtered;
+  }
+  const i=a[randomIndex(a.length)];
+  used.push(i);
+  if(round===1)lastFirstSituation=i;
+  return situations[i];
+}
+function modeForRound(){return round===3?"video":round===7?"audio":"vote"}
+function pickActorTarget(){
+  const all=ids();if(all.length<2)return{actor:all[0],target:all[0]};
+  const actorPool=isHost?all.filter(id=>id!==myId):all;
+  const pool=actorPool.length?actorPool:all;
+  const actor=pool[Math.floor(Math.random()*pool.length)];
+  const other=all.filter(x=>x!==actor);
+  return{actor,target:other[Math.floor(Math.random()*other.length)]};
+}
+const missionTemplates=[
+ "Imita a {target} cuando descubre que alguien se comió algo que había guardado.",
+ "Imita a {target} cuando le dicen: “Tenemos que hablar”.",
+ "Imita a {target} intentando explicar por qué llegó tarde.",
+ "Imita a {target} cuando el internet se cae justo en el peor momento.",
+ "Imita a {target} intentando convencer a todos de una idea completamente absurda.",
+ "Imita a {target} cuando recibe una noticia inesperadamente buena.",
+ "Imita a {target} cuando descubre que tiene que pagar algo que no esperaba.",
+ "Imita a {target} intentando ocultar que fue quien hizo una pequeña travesura."
+];
+
+async function startGame(){
+  if(!isHost)return;
+  if(count()<2){txt("err","Necesitan al menos 2 jugadores.");return}
+  if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
+  round=1;used=[];scores=Object.fromEntries(ids().map(id=>[id,0]));
+  // Cada nueva partida vuelve a tener 10 situaciones únicas y una pregunta
+  // inicial diferente a la de la partida anterior cuando sea posible.
+  used=[];
+  await beginRound();
+}
+async function beginRound(){
+  stopLocalMedia();resetPeer();
+  currentGame=pickSituation();currentMode=modeForRound();
+  votes={};voted=false;imitationDone=false;actorId=null;targetId=null;mission="";
+  if(currentMode!=="vote"){
+    const x=pickActorTarget();actorId=x.actor;targetId=x.target;
+    mission=missionTemplates[Math.floor(Math.random()*missionTemplates.length)].replace("{target}",pname(targetId));
+  }
+  phase="voting";renderGame();await syncState();
+}
+
+function renderGame(){
+  hide("lobby");show("game");
+  txt("roundNo",round);txt("mode",currentMode==="video"?"🎥 IMITACIÓN EN VIDEO":currentMode==="audio"?"🎙️ IMITACIÓN DE AUDIO":"🗳️ VOTACIÓN");
+  txt("category",currentGame?.category||"");txt("question",currentGame?.text||"");txt("result","");
+  if(currentMode==="video"||currentMode==="audio"){hide("normalActions");show("imitationPanel");renderImitation()}
+  else{show("normalActions");hide("imitationPanel");renderPlayers()}
+  hide("hostNext");
+  if(phase==="resolved"&&isHost)show("hostNext");
+}
+
+function renderImitation(){
+  const mine=actorId===myId;
+  const videoMode=currentMode==="video";
+  txt("hostImitationText",videoMode?"Cuando termine, voten quién estaba detrás de la imitación.":"Escucha con atención. Cuando termine, voten quién estaba detrás de la imitación.");
+  if(mine){
+    txt("missionText",mission);
+    if(videoMode){
+      show("cameraBtn");hide("audioBtn");
+      if(localStream){hide("cameraBtn");show("recordBtn")}
+    }else{
+      hide("cameraBtn");show("audioBtn");
+      if(localStream){hide("audioBtn");show("recordBtn")}
+    }
+  }else{
+    txt("missionText",videoMode?"🎭 Alguien recibió una misión secreta. Observa bien.":"🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
+    hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
+  }
+  // Todos los jugadores que no son el actor deben ver/escuchar la imitación.
+  // El actor conserva únicamente su vista previa local.
+  if(!mine)show("hostImitation");else hide("hostImitation");
+  if(videoMode){show("remoteVideo");hide("remoteAudio")}else{hide("remoteVideo");show("remoteAudio")}
+  renderImitationVotes();
+}
+
+function renderImitationVotes(){
+  const box=$("imitationVotes");if(!box)return;
+  if(!imitationDone||phase!=="voting"){box.innerHTML="";return}
+  box.innerHTML=ids().map(id=>{
+    const disabled=voted||id===myId||phase!=="voting";
+    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="voteImitation(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
+  }).join("");
+  show("imitationVotes");
+}
+
+async function vote(target){
+  if(voted||phase!=="voting"||target===myId||!players[target])return;
+  voted=true;
+  txt("result","🗳️ Votaste por "+pname(target)+" · esperando a los demás…");
+  // Broadcast no devuelve el mensaje al emisor por defecto. Por eso el host
+  // debe registrar su propio voto localmente; de lo contrario, con 2 jugadores
+  // la partida queda esperando eternamente el voto del anfitrión.
+  if(isHost)votes[myId]=target;
+  await broadcast("VOTE",{room,round,voter:myId,target});
+  renderPlayers();renderImitationVotes();
+  if(isHost){
+    if(Object.keys(votes).length>=count())await resolveRound();
+    else await syncState();
+  }
+}
+async function voteImitation(target){await vote(target)}
+
+async function resolveRound(){
+  if(!isHost||phase!=="voting")return;
+  if(currentMode!=="vote"&&!imitationDone)return;
+  phase="resolved";
+  if(currentMode!=="vote"){
+    Object.entries(votes).forEach(([voter,target])=>{
+      if(target===actorId)scores[voter]=(scores[voter]||0)+2;
+    });
+    const wrong=Object.values(votes).filter(x=>x!==actorId).length;
+    if(wrong>=Math.ceil(count()/2))scores[actorId]=(scores[actorId]||0)+3;
+  }else{
+    const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
+    const max=Math.max(...Object.values(tally),0);
+    Object.entries(votes).forEach(([voter,target])=>{
+      if(tally[target]===max)scores[voter]=(scores[voter]||0)+1;
+    });
+  }
+  renderResolution();await syncState();
+}
+function renderResolution(){
+  renderPlayers();
+  if(currentMode!=="vote"){
+    txt("result",(currentMode==="video"?"🎥":"🎙️")+" Era "+pname(actorId)+" · ¡si engañaste a la mayoría ganaste +3!");
+  }else{
+    const tally={};Object.values(votes).forEach(x=>tally[x]=(tally[x]||0)+1);
+    const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+    txt("result",top?"🏆 Más votado: "+pname(top[0]):"Votación terminada.");
+  }
+  if(isHost)show("hostNext");
+}
+
+async function nextRound(){
+  if(!isHost||phase!=="resolved")return;
+  if(round>=10){finishGame();return}
+  round++;await beginRound();
+}
+
+function finishGame(){
+  stopLocalMedia();resetPeer();
+  if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
+  stopJoinRetry();
+  phase="finished";
+  renderFinal();syncState();
+  // El código actual pertenece a esta partida. La próxima partida tendrá uno nuevo.
+  room=null;
+}
+function renderFinal(){
+  hide("hostNext");hide("imitationPanel");show("normalActions");
+  const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const winner=ranked[0]?.[0];
+  txt("mode","🏆 GRAN FINAL");txt("category","La familia ha hablado");
+  $("question").innerHTML='<div class="bigResult pulse">🎉 ¡PARTIDA TERMINADA!<br><span style="font-size:.55em">👑 '+esc(pname(winner))+' GANA</span></div>';
+  $("normalActions").innerHTML='<div class="scoreboard">'+ranked.map((x,i)=>
+    '<div class="scoreRow"><b>'+(['👑','🥈','🥉'][i]||'🎭')+' '+esc(pname(x[0]))+'</b><span>'+x[1]+' pts</span></div>'
+  ).join("")+'</div>';
+  txt("result","🔥 ¡Qué familia tan peligrosa! · ¿Revancha?");
+}
+
+async function startCamera(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("camera");
+    stopLocalMedia();
+    localStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"user",width:{ideal:540},height:{ideal:960},frameRate:{ideal:24,max:24}},audio:true
+    });
+    $("selfPreview").srcObject=localStream;show("selfPreview");hide("cameraBtn");show("recordBtn");
+    txt("result","📹 Cámara lista. ¡Prepárate!");
+  }catch(e){txt("result","No se pudo activar la cámara. Revisa los permisos del navegador.")}
+}
+
+async function startAudio(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("microphone");
+    stopLocalMedia();
+    localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    hide("audioBtn");show("recordBtn");
+    txt("result","🎙️ Micrófono listo. ¡Prepárate!");
+  }catch(e){
+    txt("result","No se pudo activar el micrófono. Revisa los permisos del navegador.");
+  }
+}
+
+function startTimer(){
+  if(timer)clearInterval(timer);let n=20;txt("timer",n);
+  timer=setInterval(()=>{n--;txt("timer",n);if(n<=0)stopImitationStream()},1000);
+}
+function resetPeer(){
+  if(rtcWatchdog){clearTimeout(rtcWatchdog);rtcWatchdog=null}
+  Object.values(rtcPeers).forEach(pc=>{try{pc.close()}catch(e){}});
+  rtcPeers={};rtcIceQueues={};
+  if(peer){try{peer.close()}catch(e){}}
+  peer=null;pendingIce=[];rtcStartedAt=0;
+}
+async function flushIceFor(id){
+  const pc=rtcPeers[id];
+  if(!pc||!pc.remoteDescription)return;
+  const queue=rtcIceQueues[id]||[];rtcIceQueues[id]=[];
+  for(const candidate of queue){
+    try{await pc.addIceCandidate(new RTCIceCandidate(candidate))}
+    catch(e){console.warn("ICE queued candidate",e)}
+  }
+}
+function startRtcWatchdog(){
+  if(rtcWatchdog)clearTimeout(rtcWatchdog);
+  rtcStartedAt=Date.now();
+  rtcWatchdog=setTimeout(()=>{
+    const pcs=Object.values(rtcPeers);
+    const connected=pcs.some(pc=>["connected","completed"].includes(pc.iceConnectionState));
+    const pending=pcs.some(pc=>["new","checking"].includes(pc.iceConnectionState));
+    if(!connected&&!pending&&actorId===myId&&localStream){
+      txt("result","⚠️ La red está bloqueando el video. Reintentando…");
+      startImitationStream(true);
+    }else if(!connected&&actorId===myId&&localStream){
+      txt("result","⏳ Conectando el video… si tarda demasiado, revisaremos TURN.");
+    }
+  },12000);
+}
+function stopLocalMedia(){
+  if(timer){clearInterval(timer);timer=null}
+  if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
+  if($("selfPreview")){$("selfPreview").srcObject=null;hide("selfPreview")}
+}
+
+async function startImitationStream(retry=false){
+  if(!localStream||actorId!==myId)return;
+  const recipients=ids().filter(id=>id!==myId);
+  if(!recipients.length)return;
+  resetPeer();
+  try{
+    for(const target of recipients){
+      const pc=new RTCPeerConnection(rtcConfig());
+      rtcPeers[target]=pc;
+      localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+      pc.getSenders().forEach(sender=>{
+        if(sender.track?.kind==="video"){
+          const p=sender.getParameters();p.encodings=p.encodings?.length?p.encodings:[{}];
+          p.encodings.forEach(enc=>{enc.maxBitrate=650000;enc.maxFramerate=24});
+          sender.setParameters(p).catch(()=>{});
+        }
+      });
+      pc.onicecandidate=e=>{
+        if(e.candidate)broadcast("RTC_ICE",{room,to:target,from:myId,candidate:e.candidate});
+      };
+      pc.oniceconnectionstatechange=()=>{
+        if(["failed","disconnected"].includes(pc.iceConnectionState))
+          txt("result","⚠️ Una conexión se perdió; seguimos transmitiendo al resto.");
+      };
+      const offer=await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await broadcast("RTC_OFFER",{room,to:target,actorId:myId,from:myId,offer:pc.localDescription});
+    }
+    hide("recordBtn");show("stopBtn");startTimer();startRtcWatchdog();
+    txt("result","🎬 ¡ESTÁS EN VIVO PARA TODOS!");
+  }catch(e){
+    console.error(e);txt("result","No se pudo iniciar el video.");
+  }
+}
+
+function stopImitationStream(){
+  if(timer){clearInterval(timer);timer=null}
+  if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
+  hide("selfPreview");hide("stopBtn");txt("timer","🎬 ¡LISTO!");
+  imitationDone=true;
+  broadcast("IMITATION_DONE",{room,round});
+  renderImitationVotes();
+  txt("result","🎬 ¡Terminaste! Ahora voten.");
+}
+
+window.showLobby=showLobby;window.createRoom=createRoom;window.joinRoom=joinRoom;
+window.startGame=startGame;window.nextRound=nextRound;window.vote=vote;
+window.voteImitation=voteImitation;window.startCamera=startCamera;window.startAudio=startAudio;
+window.startImitationStream=startImitationStream;window.stopImitationStream=stopImitationStream;
+
+setupRealtime().catch(e=>{console.error(e);txt("err","Error de conexión: "+e.message)});
+
+</script>
+</body>
+</html>
