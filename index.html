@@ -331,9 +331,14 @@ async function setupRealtime(){
       voted=!!votes[myId];imitationDone=!!payload.imitationDone;
       renderGame();
     }
-    if(payload.phase==="finished")renderFinal();
+    if(payload.phase==="finished"){
+      renderFinal();
+      try{localStorage.removeItem("familyplay_state")}catch(e){}
+    }
     renderPlayers();
     if(isHost)updateLobbyControls();
+    // Todos los jugadores guardan el estado recibido para poder recuperar la partida.
+    try{localStorage.setItem("familyplay_state",JSON.stringify({...payload,me,myId,isHost,room}))}catch(e){}
     // Si el anfitrión respondió, dejamos de insistir con el JOIN.
     if(!isHost && payload.players?.[myId])stopJoinRetry();
   });
@@ -449,15 +454,22 @@ function restoreSavedGame(){
   try{
     const raw=localStorage.getItem("familyplay_state"); if(!raw)return;
     const s=JSON.parse(raw);
-    if(!s?.room||!s?.myId||!s?.isHost)return;
-    me=s.me||"Anfitrión";myId=s.myId;room=s.room;isHost=true;
+    if(!s?.room||!s?.myId)return;
+    me=s.me||"Jugador";myId=s.myId;room=s.room;isHost=!!s.isHost;
     players=s.players||{};scores=s.scores||{};round=s.round||1;used=s.used||[];
     currentGame=s.game||null;currentMode=s.mode||"vote";actorId=s.actorId||null;targetId=s.targetId||null;
     mission=s.mission||"";phase=s.phase||"lobby";votes=s.votes||{};imitationDone=!!s.imitationDone;
-    if(phase==="finished")return;
+    if(phase==="finished"){localStorage.removeItem("familyplay_state");return}
     hide("onboarding");hide("hostControls");hide("joinControls");show("lobby");show("roomInfo");
     txt("roomCode",room);renderPlayers();updateLobbyControls();
-    channel?.track({room,id:myId,name:me,role:"host"}).then(()=>syncState()).catch(()=>{});
+    channel?.track({room,id:myId,name:me,role:isHost?"host":"player"}).then(async()=>{
+      if(isHost) await syncState();
+      else {
+        await announceJoin();
+        stopJoinRetry();
+        joinRetry=setInterval(()=>announceJoin(),2500);
+      }
+    }).catch(()=>{});
     if(currentGame&&phase!=="lobby")renderGame();
   }catch(e){console.warn("restore",e)}
 }
