@@ -25,12 +25,12 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
 
   <section id="onboarding" class="card">
     <h2>😂 Una partida nunca será igual</h2>
-    <p>Ahora Family Play tiene <b>10 preguntas eróticas</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
+    <p>Ahora Family Play tiene <b>10 preguntas</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
     <div class="grid">
       <div>📱 Cada persona entra desde su celular.</div>
       <div>🎭 Alguien interpreta o responde la situación.</div>
       <div>🕵️ Los demás intentan descubrir quién está detrás.</div>
-      <div>🔥 La ronda 10 es el gran final.</div>
+      <div>🏆 La ronda 10 es el gran final.</div>
     </div>
     <div class="row" style="margin-top:18px"><button onclick="showLobby()">¡Vamos a jugar!</button><button class="secondary" onclick="showLobby()">Ya conozco el juego</button></div>
   </section>
@@ -88,8 +88,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V18 · prueba atrevida · 10 preguntas · 🔥 video + 🎙️ audio por MiroTalk</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟠 V18 · prueba atrevida · SFU MiroTalk · video + audio</div>
+  <div class="tiny">V24 · 10 preguntas · 🎥 video + 🎙️ audio por MiroTalk</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V24 · SFU MiroTalk · video + audio</div>
 </div>
 
 <script>
@@ -98,16 +98,16 @@ const SUPABASE_KEY = "sb_publishable_7C_LWcZfqN-6TcxDURNB7A_wcvyxoKL";
 const sb = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const situations = [
-  { category: `🔥 DIRECTA`, text: `¿Quién de los dos quiere más al otro ahora mismo?` },
-  { category: `😈 SIN RODEOS`, text: `¿Quién de los dos tiene más ganas de besar al otro?` },
-  { category: `💋 DESEO`, text: `¿Quién de los dos siente más atracción por el otro?` },
-  { category: `🔥 PROVOCACIÓN`, text: `¿Quién de los dos está más dispuesto a dejarse llevar esta noche?` },
-  { category: `😏 TENSIÓN`, text: `¿Quién de los dos está sintiendo más tensión entre ustedes?` },
-  { category: `💋 COQUETEO`, text: `¿Quién de los dos coquetea más cuando realmente quiere algo?` },
-  { category: `🔥 INTIMIDAD`, text: `¿Quién de los dos tendría más iniciativa para acercarse al otro?` },
-  { category: `😈 SIN FILTRO`, text: `¿Quién de los dos está ocultando más ganas de provocar al otro?` },
-  { category: `❤️‍🔥 QUÍMICA`, text: `¿Quién de los dos tiene más química con el otro?` },
-  { category: `🔥 GRAN FINAL`, text: `Si tuvieran que dejar de jugar y seguir la atracción, ¿quién daría el primer paso?` }
+  { category: `😂 FAMILIA`, text: `¿Quién de los dos hace reír más al otro?` },
+  { category: `😏 CURIOSIDAD`, text: `¿Quién de los dos se conoce mejor?` },
+  { category: `🎭 PERSONALIDAD`, text: `¿Quién de los dos tiene más carácter?` },
+  { category: `🏆 RETO`, text: `¿Quién de los dos ganaría un reto de improvisación?` },
+  { category: `🤣 DIVERTIDA`, text: `¿Quién de los dos hace más locuras?` },
+  { category: `❤️ CONEXIÓN`, text: `¿Quién de los dos es más detallista?` },
+  { category: `😈 PICANTE`, text: `¿Quién de los dos provoca más al otro?` },
+  { category: `😂 CONFESIÓN`, text: `¿Quién de los dos tiene más secretos divertidos?` },
+  { category: `🔥 RETO`, text: `¿Quién de los dos se atrevería a hacer algo inesperado?` },
+  { category: `🎉 FINAL`, text: `¿Quién de los dos merece ganar esta partida?` }
 ];
 
 
