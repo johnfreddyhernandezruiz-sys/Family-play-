@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Play · V8</title>
+<title>Family Play · V12</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box} body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;background:radial-gradient(circle at 20% 10%,#2b1457 0,#10142d 38%,#070b18 100%)}
@@ -25,7 +25,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
 
   <section id="onboarding" class="card">
     <h2>😂 Una partida nunca será igual</h2>
-    <p>Ahora Family Play tiene <b>100 situaciones</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
+    <p>Ahora Family Play tiene <b>105 situaciones</b>. Cada partida selecciona hasta <b>10 diferentes</b> al azar, con situaciones cada vez más locas.</p>
     <div class="grid">
       <div>📱 Cada persona entra desde su celular.</div>
       <div>🎭 Alguien interpreta o responde la situación.</div>
@@ -88,8 +88,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="hostNext" class="row hidden" style="margin-top:18px"><button onclick="nextRound()">➡️ Siguiente ronda</button></div>
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
-  <div class="tiny">V10 · 100 situaciones · 10 rondas · 🎭 una de video + 🎙️ una de audio</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V11 · Video SFU integrado · MiroTalk · lobby + recuperación</div>
+  <div class="tiny">V12 · 105 situaciones · 10 rondas · 🎭 video + 🎙️ audio por MiroTalk</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V12 · SFU MiroTalk · video + audio · lobby + recuperación</div>
 </div>
 
 <script>
@@ -605,21 +605,13 @@ function renderGame(){
 function renderImitation(){
   const mine=actorId===myId;
   const videoMode=currentMode==="video";
-  txt("hostImitationText",videoMode?"🎥 Mira la imitación en vivo. Cuando termine, voten quién estaba detrás.":"Escucha con atención. Cuando termine, voten quién estaba detrás de la imitación.");
-  hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
-  if(videoMode){
+  const mediaMode=currentMode==="video"||currentMode==="audio";
+  txt("hostImitationText",videoMode?"🎥 Mira la imitación en vivo. Cuando termine, voten quién estaba detrás.":"🎙️ Escucha la imitación en vivo. Cuando termine, voten quién estaba detrás.");
+  hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");hide("selfPreview");
+  if(mediaMode){
     show("mirotalkMeet");show("mirotalkNote");
-    txt("missionText",mine?mission:"🎭 Alguien recibió una misión secreta. Observa bien.");
+    txt("missionText",mine?mission:(videoMode?"🎭 Alguien recibió una misión secreta. Observa bien.":"🎙️ Alguien recibió una misión secreta. Escucha muy bien."));
     startMiroTalkRound();
-  }else{
-    hide("mirotalkMeet");hide("mirotalkNote");
-    if(mine){
-      txt("missionText",mission);
-      hide("cameraBtn");show("audioBtn");
-      if(localStream){hide("audioBtn");show("recordBtn")}
-    }else{
-      txt("missionText","🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
-    }
   }
   if(!mine)show("hostImitation");else hide("hostImitation");
   if(videoMode){show("remoteVideo");hide("remoteAudio")}else{hide("remoteVideo");show("remoteAudio")}
@@ -636,8 +628,9 @@ function stopMiroTalk(){
 }
 
 function startMiroTalkRound(){
-  if(currentMode!=="video"||!room||!actorId)return;
-  const key=room+"-R3";
+  if((currentMode!=="video"&&currentMode!=="audio")||!room||!actorId)return;
+  const suffix=currentMode==="video"?"R3":"R7";
+  const key=room+"-"+suffix;
   if(mirotalkRoomKey===key&&mirotalkFrame)return;
   const box=$("mirotalkMeet");
   if(!box)return;
@@ -645,21 +638,23 @@ function startMiroTalkRound(){
   show("mirotalkMeet");show("mirotalkNote");
   const name=encodeURIComponent(me||"Jugador");
   const isActor=actorId===myId;
+  const audio=isActor?"1":"0";
+  const video=(currentMode==="video"&&isActor)?"1":"0";
   const url="https://sfu.mirotalk.com/join?room="+encodeURIComponent(key)+
-    "&roomPassword=0&name="+name+"&avatar=0&audio="+(isActor?"1":"0")+
-    "&video="+(isActor?"1":"0")+"&screen=0&chat=0&hide=0&notify=0&duration=00:02:00";
+    "&roomPassword=0&name="+name+"&avatar=0&audio="+audio+
+    "&video="+video+"&screen=0&chat=0&hide=0&notify=0&duration=00:02:00";
   const frame=document.createElement("iframe");
   frame.allow="camera; microphone; speaker-selection; display-capture; fullscreen; clipboard-read; clipboard-write; web-share; autoplay; picture-in-picture";
   frame.src=url;
-  frame.title="Family Play · Imitación en video";
+  frame.title="Family Play · "+(currentMode==="video"?"Imitación en video":"Imitación de audio");
   box.appendChild(frame);
   mirotalkFrame=frame;
   mirotalkRoomKey=key;
   if(isActor){
-    txt("result","🎬 Tu video está entrando por MiroTalk SFU. ¡Haz la imitación!");
+    txt("result",currentMode==="video"?"🎬 Tu video está entrando por MiroTalk SFU. ¡Haz la imitación!":"🎙️ Tu audio está entrando por MiroTalk SFU. ¡Haz la imitación!");
     startTimer();
   }else{
-    txt("result","👀 Video en vivo: observa al actor.");
+    txt("result",currentMode==="video"?"👀 Video en vivo: observa al actor.":"👂 Audio en vivo: escucha al actor.");
   }
 }
 function renderImitationVotes(){
@@ -848,7 +843,7 @@ async function startImitationStream(retry=false){
 }
 
 function stopImitationStream(){
-  if(currentMode==="video")stopMiroTalk();
+  if(currentMode==="video"||currentMode==="audio")stopMiroTalk();
   if(timer){clearInterval(timer);timer=null}
   if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
   hide("selfPreview");hide("stopBtn");txt("timer","🎬 ¡LISTO!");
