@@ -450,8 +450,8 @@ function renderPlayers(){
     '<div class="player"><div class="avatar">🎭</div><b>'+esc(pname(id))+'</b>'+(id===myId?' <small>(tú)</small>':'')+'</div>'
   ).join("");
   if($("playersGame"))$("playersGame").innerHTML=ids().map(id=>{
-    const disabled=voted||phase!=="voting"||id===myId;
-    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="vote(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
+    const disabled=voted||phase!=="voting";
+    return '<button class="vote" '+(disabled?"disabled":"")+' onclick="vote(\''+id+'\')">🎭 '+esc(pname(id))+(id===myId?' (yo)':'')+'</button>';
   }).join("");
 }
 
@@ -599,14 +599,14 @@ function renderImitationVotes(){
   const box=$("imitationVotes");if(!box)return;
   if(!imitationDone||phase!=="voting"){box.innerHTML="";return}
   box.innerHTML=ids().map(id=>{
-    const disabled=voted||id===myId||phase!=="voting";
+    const disabled=voted||phase!=="voting";
     return '<button class="vote" '+(disabled?"disabled":"")+' onclick="voteImitation(\''+id+'\')">🎭 '+esc(pname(id))+'</button>';
   }).join("");
   show("imitationVotes");
 }
 
 async function vote(target){
-  if(voted||phase!=="voting"||target===myId||!players[target])return;
+  if(voted||phase!=="voting"||!players[target])return;
   voted=true;
   txt("result","🗳️ Votaste por "+pname(target)+" · esperando a los demás…");
   // Broadcast no devuelve el mensaje al emisor por defecto. Por eso el host
