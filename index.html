@@ -325,6 +325,7 @@ async function setupRealtime(){
     round=payload.round||round;used=payload.used||used;
     if(payload.phase)phase=payload.phase;
     if(payload.game){
+      if(payload.phase==="resolved" && (payload.mode==="video"||payload.mode==="audio")) stopMiroTalk();
       currentGame=payload.game;currentMode=payload.mode||"vote";
       actorId=payload.actorId||null;targetId=payload.targetId||null;
       mission=payload.mission||"";votes=payload.votes||{};
@@ -348,7 +349,8 @@ async function setupRealtime(){
     if(!players[payload.voter]||!players[payload.target]||votes[payload.voter])return;
     votes[payload.voter]=payload.target;
     await syncState();
-    if(Object.keys(votes).length>=count())resolveRound();
+    const needed=currentMode==="vote"?count():Math.max(1,count()-1);
+    if(Object.keys(votes).length>=needed)resolveRound();
   });
 
   channel.on("broadcast",{event:"IMITATION_DONE"},async({payload})=>{
@@ -690,7 +692,8 @@ async function vote(target){
   await broadcast("VOTE",{room,round,voter:myId,target});
   renderPlayers();renderImitationVotes();
   if(isHost){
-    if(Object.keys(votes).length>=count())await resolveRound();
+    const needed=currentMode==="vote"?count():Math.max(1,count()-1);
+    if(Object.keys(votes).length>=needed)await resolveRound();
     else await syncState();
   }
 }
@@ -700,6 +703,7 @@ async function resolveRound(){
   if(!isHost||phase!=="voting")return;
   if(currentMode!=="vote"&&!imitationDone)return;
   phase="resolved";
+  if(currentMode!=="vote")stopMiroTalk();
   if(currentMode!=="vote"){
     Object.entries(votes).forEach(([voter,target])=>{
       if(target===actorId)scores[voter]=(scores[voter]||0)+2;
