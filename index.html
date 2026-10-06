@@ -251,13 +251,13 @@ async function setupRealtime(){
   if(realtimeReady)return realtimeReady;
   realtimeReady=(async()=>{
   await loadTurnCredentials();
-  channel=sb.channel("family-play-v10",{config:{broadcast:{ack:true}}});
+  channel=sb.channel("family-play-v11",{config:{broadcast:{ack:true}}});
 
   // Presence es la capa de descubrimiento de jugadores. Broadcast sigue
   // llevando el estado del juego, pero Presence evita depender de que un JOIN
   // llegue justo en el instante correcto.
   channel.on("presence",{event:"sync"},async()=>{
-    if(!isHost||!room)return;
+    if(!room)return;
     const state=channel.presenceState();
     const roomPlayers={};
     Object.values(state).flat().forEach(p=>{
@@ -265,7 +265,7 @@ async function setupRealtime(){
         roomPlayers[p.id]={name:String(p.name||"Jugador").slice(0,24)};
       }
     });
-    if(!roomPlayers[myId])roomPlayers[myId]={name:me||"Anfitrión"};
+    if(myId&&!roomPlayers[myId])roomPlayers[myId]={name:me||(isHost?"Anfitrión":"Jugador")};
     let changed=false;
     for(const id of Object.keys(roomPlayers)){
       if(!players[id]||players[id].name!==roomPlayers[id].name)changed=true;
@@ -282,7 +282,7 @@ async function setupRealtime(){
     if(changed){
       renderPlayers();
       updateLobbyControls();
-      await syncState();
+      if(isHost)await syncState();
     }
   });
 
