@@ -652,6 +652,7 @@ function startMiroTalkRound(){
   mirotalkRoomKey=key;
   if(isActor){
     txt("result","🎬 Tu video está entrando por MiroTalk SFU. ¡Haz la imitación!");
+    startTimer();
   }else{
     txt("result","👀 Video en vivo: observa al actor.");
   }
@@ -857,7 +858,7 @@ window.startGame=startGame;window.nextRound=nextRound;window.vote=vote;
 window.voteImitation=voteImitation;window.startCamera=startCamera;window.startAudio=startAudio;
 window.startImitationStream=startImitationStream;window.stopImitationStream=stopImitationStream;
 
-setupRealtime().catch(e=>{console.error(e);txt("err","Error de conexión: "+e.message)});
+setupRealtime().then(()=>restoreSavedGame()).catch(e=>{console.error(e);txt("err","Error de conexión: "+e.message)});
 
 </script>
 </body>
