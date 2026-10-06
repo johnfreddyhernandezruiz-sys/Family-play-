@@ -16,7 +16,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
 .hidden{display:none!important} .round{font-size:14px;opacity:.75;text-transform:uppercase;letter-spacing:2px} .category{display:inline-block;margin:12px 0;padding:7px 11px;border-radius:999px;background:#ffffff12;color:#e4c7ff} .question{font-size:clamp(25px,5vw,43px);line-height:1.13;font-weight:850;margin:8px 0 20px}
 .avatar{font-size:45px} .votegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px} .vote{background:#ffffff0b;border:1px solid #ffffff15;box-shadow:none} .result{font-size:20px;line-height:1.45} .tiny{font-size:13px;opacity:.6;text-align:center;margin-top:22px}
 
-.bigResult{font-size:clamp(30px,7vw,58px);font-weight:950;text-align:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#2a155c,#161a3b);border:1px solid #ffffff18}.scoreboard{display:grid;gap:9px;margin-top:14px}.scoreRow{display:flex;justify-content:space-between;padding:13px 15px;border-radius:14px;background:#ffffff09;border:1px solid #ffffff12}.pulse{animation:pulse 1s infinite alternate}@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.03)}}
+.bigResult{font-size:clamp(30px,7vw,58px);font-weight:950;text-align:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#2a155c,#161a3b);border:1px solid #ffffff18}.mirotalkBox{width:100%;height:min(62vh,620px);min-height:360px;border-radius:18px;overflow:hidden;background:#050712;border:1px solid #ffffff18;margin-top:14px}.mirotalkBox iframe{width:100%;height:100%;border:0;display:block}.mirotalkNote{font-size:13px;opacity:.7;margin-top:8px}.scoreboard{display:grid;gap:9px;margin-top:14px}.scoreRow{display:flex;justify-content:space-between;padding:13px 15px;border-radius:14px;background:#ffffff09;border:1px solid #ffffff12}.pulse{animation:pulse 1s infinite alternate}@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.03)}}
 </style>
 </head>
 <body>
@@ -76,6 +76,8 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
         </div>
         <video id="selfPreview" class="hidden" autoplay muted playsinline style="width:100%;border-radius:18px;margin-top:14px"></video>
       </div>
+      <div id="mirotalkMeet" class="mirotalkBox hidden"></div>
+      <div id="mirotalkNote" class="mirotalkNote hidden">🔒 Video seguro por MiroTalk SFU · esta sala se cierra al terminar la ronda.</div>
       <div id="hostImitation" class="hidden" style="margin-top:16px">
         <div class="round">🎭 ¡TODOS ESTÁN ATENTOS!</div>
         <video id="remoteVideo" autoplay playsinline style="width:100%;border-radius:18px;background:#050712;min-height:220px"></video><audio id="remoteAudio" autoplay playsinline></audio>
@@ -87,7 +89,7 @@ button{border:0;border-radius:15px;padding:15px 18px;font-size:17px;font-weight:
     <div id="result" class="result" style="margin-top:16px"></div>
   </section>
   <div class="tiny">V10 · 100 situaciones · 10 rondas · 🎭 una de video + 🎙️ una de audio</div>
-  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 VERSIÓN CORREGIDA · Votación + aleatoriedad · lobby 2a63eec</div>
+  <div id="buildBadge" style="margin-top:8px;font-size:12px;opacity:.85">🟢 V11 · Video SFU integrado · MiroTalk · lobby + recuperación</div>
 </div>
 
 <script>
@@ -206,6 +208,7 @@ let phase="lobby",voted=false,localStream=null,peer=null,timer=null,imitationDon
 let pendingIce=[],rtcStartedAt=0,rtcWatchdog=null;
 let joinRetry=null,lobbyHeartbeat=null,realtimeReady=null;
 let rtcPeers={},rtcIceQueues={};
+let mirotalkRoomKey="",mirotalkFrame=null;
 let rtcIceServers=[
   {urls:"stun:stun.l.google.com:19302"},
   {urls:"stun:stun1.l.google.com:19302"},
@@ -430,9 +433,29 @@ function snapshot(){
   return {room,players,scores,round,used,game:currentGame,mode:currentMode,
     actorId,targetId,mission,phase,votes,imitationDone};
 }
-async function syncState(){await broadcast("STATE",snapshot())}
+async function syncState(){
+  const snap=snapshot();
+  try{localStorage.setItem("familyplay_state",JSON.stringify({...snap,me,myId,isHost,room}))}catch(e){}
+  await broadcast("STATE",snap);
+}
 
-function showLobby(){hide("onboarding");show("lobby");setupRealtime()}
+function showLobby(){hide("onboarding");show("lobby");setupRealtime();restoreSavedGame()}
+function restoreSavedGame(){
+  try{
+    const raw=localStorage.getItem("familyplay_state"); if(!raw)return;
+    const s=JSON.parse(raw);
+    if(!s?.room||!s?.myId||!s?.isHost)return;
+    me=s.me||"Anfitrión";myId=s.myId;room=s.room;isHost=true;
+    players=s.players||{};scores=s.scores||{};round=s.round||1;used=s.used||[];
+    currentGame=s.game||null;currentMode=s.mode||"vote";actorId=s.actorId||null;targetId=s.targetId||null;
+    mission=s.mission||"";phase=s.phase||"lobby";votes=s.votes||{};imitationDone=!!s.imitationDone;
+    if(phase==="finished")return;
+    hide("onboarding");hide("hostControls");hide("joinControls");show("lobby");show("roomInfo");
+    txt("roomCode",room);renderPlayers();updateLobbyControls();
+    channel?.track({room,id:myId,name:me,role:"host"}).then(()=>syncState()).catch(()=>{});
+    if(currentGame&&phase!=="lobby")renderGame();
+  }catch(e){console.warn("restore",e)}
+}
 
 function stopJoinRetry(){
   if(joinRetry){clearInterval(joinRetry);joinRetry=null}
@@ -554,7 +577,7 @@ async function startGame(){
   await beginRound();
 }
 async function beginRound(){
-  stopLocalMedia();resetPeer();
+  stopMiroTalk();stopLocalMedia();resetPeer();
   currentGame=pickSituation();currentMode=modeForRound();
   votes={};voted=false;imitationDone=false;actorId=null;targetId=null;mission="";
   if(currentMode!=="vote"){
@@ -577,27 +600,62 @@ function renderGame(){
 function renderImitation(){
   const mine=actorId===myId;
   const videoMode=currentMode==="video";
-  txt("hostImitationText",videoMode?"Cuando termine, voten quién estaba detrás de la imitación.":"Escucha con atención. Cuando termine, voten quién estaba detrás de la imitación.");
-  if(mine){
-    txt("missionText",mission);
-    if(videoMode){
-      show("cameraBtn");hide("audioBtn");
-      if(localStream){hide("cameraBtn");show("recordBtn")}
-    }else{
+  txt("hostImitationText",videoMode?"🎥 Mira la imitación en vivo. Cuando termine, voten quién estaba detrás.":"Escucha con atención. Cuando termine, voten quién estaba detrás de la imitación.");
+  hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
+  if(videoMode){
+    show("mirotalkMeet");show("mirotalkNote");
+    txt("missionText",mine?mission:"🎭 Alguien recibió una misión secreta. Observa bien.");
+    startMiroTalkRound();
+  }else{
+    hide("mirotalkMeet");hide("mirotalkNote");
+    if(mine){
+      txt("missionText",mission);
       hide("cameraBtn");show("audioBtn");
       if(localStream){hide("audioBtn");show("recordBtn")}
+    }else{
+      txt("missionText","🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
     }
-  }else{
-    txt("missionText",videoMode?"🎭 Alguien recibió una misión secreta. Observa bien.":"🎙️ Alguien recibió una misión secreta. Escucha muy bien.");
-    hide("cameraBtn");hide("audioBtn");hide("recordBtn");hide("stopBtn");
   }
-  // Todos los jugadores que no son el actor deben ver/escuchar la imitación.
-  // El actor conserva únicamente su vista previa local.
   if(!mine)show("hostImitation");else hide("hostImitation");
   if(videoMode){show("remoteVideo");hide("remoteAudio")}else{hide("remoteVideo");show("remoteAudio")}
   renderImitationVotes();
 }
 
+function stopMiroTalk(){
+  if($("mirotalkMeet")){
+    $("mirotalkMeet").innerHTML="";
+    hide("mirotalkMeet");hide("mirotalkNote");
+  }
+  mirotalkRoomKey="";
+  mirotalkFrame=null;
+}
+
+function startMiroTalkRound(){
+  if(currentMode!=="video"||!room||!actorId)return;
+  const key=room+"-R3";
+  if(mirotalkRoomKey===key&&mirotalkFrame)return;
+  const box=$("mirotalkMeet");
+  if(!box)return;
+  box.innerHTML="";
+  show("mirotalkMeet");show("mirotalkNote");
+  const name=encodeURIComponent(me||"Jugador");
+  const isActor=actorId===myId;
+  const url="https://sfu.mirotalk.com/join?room="+encodeURIComponent(key)+
+    "&roomPassword=0&name="+name+"&avatar=0&audio="+(isActor?"1":"0")+
+    "&video="+(isActor?"1":"0")+"&screen=0&chat=0&hide=0&notify=0&duration=00:02:00";
+  const frame=document.createElement("iframe");
+  frame.allow="camera; microphone; speaker-selection; display-capture; fullscreen; clipboard-read; clipboard-write; web-share; autoplay; picture-in-picture";
+  frame.src=url;
+  frame.title="Family Play · Imitación en video";
+  box.appendChild(frame);
+  mirotalkFrame=frame;
+  mirotalkRoomKey=key;
+  if(isActor){
+    txt("result","🎬 Tu video está entrando por MiroTalk SFU. ¡Haz la imitación!");
+  }else{
+    txt("result","👀 Video en vivo: observa al actor.");
+  }
+}
 function renderImitationVotes(){
   const box=$("imitationVotes");if(!box)return;
   if(!imitationDone||phase!=="voting"){box.innerHTML="";return}
@@ -663,7 +721,7 @@ async function nextRound(){
 }
 
 function finishGame(){
-  stopLocalMedia();resetPeer();
+  stopMiroTalk();stopLocalMedia();resetPeer();
   if(lobbyHeartbeat){clearInterval(lobbyHeartbeat);lobbyHeartbeat=null}
   stopJoinRetry();
   phase="finished";
@@ -784,6 +842,7 @@ async function startImitationStream(retry=false){
 }
 
 function stopImitationStream(){
+  if(currentMode==="video")stopMiroTalk();
   if(timer){clearInterval(timer);timer=null}
   if(localStream){localStream.getTracks().forEach(t=>{try{t.stop()}catch(e){}});localStream=null}
   hide("selfPreview");hide("stopBtn");txt("timer","🎬 ¡LISTO!");
