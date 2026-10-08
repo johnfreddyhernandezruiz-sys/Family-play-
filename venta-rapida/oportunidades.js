@@ -1,0 +1,6 @@
+const OPPORTUNITIES=[
+{name:"Inflador eléctrico 600W doble boquilla",category:"Fiestas / Halloween",marketPrice:39700,referenceCost:24000,units:5,season:"Halloween",risk:"Bajo",velocity:1,proof:"+10.000 vendidos en Mercado Libre",source:"Mercado Libre"},
+{name:"Cortina metalizada 1x2m",category:"Decoración",marketPrice:5200,referenceCost:3000,units:30,season:"Halloween",risk:"Bajo",velocity:3,proof:"+100 vendidos; #3 decoración para fiestas",source:"Mercado Libre"},
+{name:"Kit globos Halloween 105 piezas",category:"Decoración Halloween",marketPrice:34532,referenceCost:18000,units:8,season:"Halloween",risk:"Medio",velocity:.5,proof:"Vendedor MercadoLíder Gold, +5.000 ventas",source:"Mercado Libre"},
+{name:"Super Killer recargable + linterna",category:"Hogar / regalo",marketPrice:16500,referenceCost:13500,units:15,season:"Todo el año",risk:"Bajo",velocity:.7,proof:"Proveedor lo declara de alta rotación",source:"Heros Importadora"},
+{name:"Guirnalda navideña / decoración",category:"Navidad",marketPrice:0,referenceCost:0,units:0,season:"Navidad",risk:"Medio",velocity:0,proof:"+190 referencias Navidad 2026; precio debe cotizarse",source:"Heros Importadora"}];
